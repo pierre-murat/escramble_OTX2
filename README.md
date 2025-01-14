@@ -15,7 +15,6 @@ Developers:
 
 This repository includes bash scripts, Python code, and R notebooks for the reproduction of the main and supplementary figures of the study. Below is an outline of the folder structure and corresponding analyses:
 
-### 1. **Structural Variant Analysis**
 - **`001_cas9_sequencing_variants_call`**  
   Structural variant identification from Cas9 sequencing for OTX2-loxp3 and OTX2-loxp6 cell lines.  
   _Figures: Main Fig. 2 and Supplementary Fig. 4_
@@ -24,12 +23,10 @@ This repository includes bash scripts, Python code, and R notebooks for the repr
   Analysis of structural architectures generated from OTX2-loxp3 and OTX2-loxp6 cell lines identified via Cas9 sequencing.  
   _Figures: Main Fig. 2 and Supplementary Figs. 4, 5_
 
-### 2. **Epigenetic Modifications**
 - **`003_Fiber-seq`**  
   Analysis of m6A (DNA accessibility) and meCpG modifications from long-read sequencing data.  
   _Figures: Main Fig. 3 and Supplementary Fig. 6_
 
-### 3. **Architectural Comparisons**
 - **`004_loxP6_pool_vs_clonal_comparison`**  
   Comparative analysis of architectures from the OTX2-loxp6 cell line and a heterogeneous cell population with OTX2-loxp6 design.  
   _Figures: Supplementary Figs. 7, 8_
@@ -38,22 +35,18 @@ This repository includes bash scripts, Python code, and R notebooks for the repr
   Analysis of architectures generated in a heterogeneous cell population following the OTX2-loxp7 design.  
   _Figures: Main Figs. 4, 5 and Supplementary Figs. 11, 12, 13_
 
-### 4. **PCR Sequencing**
 - **`005_PCR_sequencing_variants_call_analysis`**  
   Analysis of structural architectures from OTX2-loxp3 cell line identified via PCR sequencing.  
   _Figures: Supplementary Fig. 9_
 
-### 5. **Custom Tools**
 - **`006_Custom_SV_caller`**  
   Custom structural variant caller for architecture analysis.  
   _Figures: Main Figs. 4, 5 and Supplementary Fig. 11_
 
-### 6. **Prediction Models**
 - **`008_Prediction`**  
   Super-enhancer OTX2 interaction analysis using ABC and rE2G models, and gene expression prediction via the Borzoi model.  
   _Figures: Supplementary Fig. 14_
 
-### 7. **Transcription Factor Binding Site Screen**
 - **`009_TFBS_deletion_screen`**  
   Data processing and analysis for transcription factor binding site deletions.  
   _Figures: Main Fig. 6 and Supplementary Fig. 15_
