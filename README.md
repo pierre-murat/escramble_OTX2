@@ -52,7 +52,7 @@ This repository includes bash scripts, Python codes, and R notebooks for the rep
   _Figures: Main Fig. 6 and Supplementary Fig. 15_
 
 - **`Source`**  
-  Additional supporting scripts
+  Additional supporting scripts.
 ---
 
 For detailed usage instructions and further information, please refer to the scripts and documentation within each folder.
