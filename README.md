@@ -13,7 +13,7 @@ Developers:
 
 ## Repository Content
 
-This repository includes bash scripts, Python code, and R notebooks for the reproduction of the main and supplementary figures of the study. Below is an outline of the folder structure and corresponding analyses:
+This repository includes bash scripts, Python codes, and R notebooks for the reproduction of the main and supplementary figures of the study. Below is an outline of the folder structure and corresponding analyses:
 
 - **`001_cas9_sequencing_variants_call`**  
   Structural variant identification from Cas9 sequencing for OTX2-loxp3 and OTX2-loxp6 cell lines.  
@@ -51,6 +51,8 @@ This repository includes bash scripts, Python code, and R notebooks for the repr
   Data processing and analysis for transcription factor binding site deletions.  
   _Figures: Main Fig. 6 and Supplementary Fig. 15_
 
+- **`Source`**  
+  Additional supporting scripts
 ---
 
 For detailed usage instructions and further information, please refer to the scripts and documentation within each folder.
