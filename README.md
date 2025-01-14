@@ -35,11 +35,6 @@ This repository includes bash scripts, Python codes, and R notebooks for the rep
   _Developer: pm23_  
   _Figures: Supplementary Figs. 7, 8_
 
-- **`007_loxP7_architectures_analysis`**  
-  Analysis of architectures generated in a heterogeneous cell population following the OTX2-loxp7 design.  
-  _Developer: pm23_  
-  _Figures: Main Figs. 4, 5 and Supplementary Figs. 11, 12, 13_
-
 - **`005_PCR_sequencing_variants_call_analysis`**  
   Analysis of structural architectures from OTX2-loxp3 cell line identified via PCR sequencing.  
   _Developer: pm23_  
@@ -50,6 +45,11 @@ This repository includes bash scripts, Python codes, and R notebooks for the rep
   _Developer: am86_  
   _Figures: Main Figs. 4, 5 and Supplementary Fig. 11_
 
+- **`007_loxP7_architectures_analysis`**  
+  Analysis of architectures generated in a heterogeneous cell population following the OTX2-loxp7 design.  
+  _Developer: pm23_  
+  _Figures: Main Figs. 4, 5 and Supplementary Figs. 11, 12, 13_
+  
 - **`008_Prediction`**  
   Super-enhancer OTX2 interaction analysis using ABC and rE2G models, and gene expression prediction via the Borzoi model.  
   _Developer: jh47_  
