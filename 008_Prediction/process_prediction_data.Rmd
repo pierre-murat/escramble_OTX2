@@ -1,0 +1,68 @@
+---
+title: "Plotting prediction outputs"
+output:
+  pdf_document: default
+  html_notebook: default
+---
+
+## Initialise environment
+
+```{r}
+library(ggplot2)
+library(dplyr)
+library(stringr)
+
+theme_sv <-   theme_bw(base_size = 7, base_family = "Helvetica") +
+  theme(strip.background = element_blank(),
+        axis.text.y = element_text(color = "black"),
+        axis.text.x = element_text(color = "black"),
+        text = element_text(family = "Helvetica"),
+        legend.text=element_text(size=7),
+        legend.key.size = unit(0.25, "cm"),
+        panel.grid = element_blank(),
+        panel.border = element_rect(color = "black"))
+```
+
+## Read in data and process
+
+```{r}
+otx2_scores <- read.csv('data/ground_truth.tsv', sep='\t', row.names = 1)
+predictions <- read.csv('data/otx2_predictions_in_tissues.csv', row.names = 1)
+all_scores <- cbind(otx2_scores, predictions[rownames(otx2_scores),])
+
+pred_corrs <- c()
+for(i in 1:ncol(predictions)){
+  pred_corrs <- c(pred_corrs,
+                  cor(all_scores$meanexpressionscoreavg,
+                      all_scores[, 1 + i]))
+}
+pred_corrs <- data.frame(pred_corrs)
+colnames(pred_corrs) <- 'Pearson.r'
+pred_corrs$tissue <- colnames(all_scores[,-c(1)])
+```
+
+## Plot predictions
+
+```{r fig.width=2, fig.height=.75}
+mean(pred_corrs$Pearson.r)
+max(pred_corrs$Pearson.r)
+pred_corrs[order(pred_corrs$Pearson.r, decreasing = TRUE),]
+ggplot(pred_corrs, aes(x=Pearson.r)) +
+  geom_histogram(bins=40) +
+  labs(x='Pearson r', y='Count') +
+  theme_sv +
+  scale_x_continuous(limits=c(-1,1))
+```
+
+```{r fig.width=1.9, fig.height=1.6}
+data.frame(blood=all_scores$RNA.blood,
+           true=all_scores$meanexpressionscoreavg,
+           wt_marker=ifelse(rownames(all_scores) == 'wt', 'WT', 'NA')) %>%
+  ggplot(aes(y=blood, x=true, shape=wt_marker)) +
+  geom_point(size=.5) +
+  theme_sv +
+  labs(x='Relative gene expression',
+       y='Predicted OTX2 RNA-seq\ncoverage [GTEx:blood]') +
+  guides(shape='none')
+```
+

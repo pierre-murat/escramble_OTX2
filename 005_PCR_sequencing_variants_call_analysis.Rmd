@@ -1,0 +1,805 @@
+---
+title: "OTX2 LCR scramble"
+author: "Pierre Murat"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document:
+    toc: yes
+    toc_float: yes
+    toc_collapsed: yes
+    toc_depth: 3
+    number_sections: yes
+    theme: lumen
+  pdf_document:
+    toc: yes
+    toc_depth: '3'
+---
+
+```{r, eval = F}
+setwd("/lustre/scratch126/gengen/projects/escramble")
+```
+
+This notebook reports the analysis of the scrambling experiment sequenced by Jonas Koeppel on the 08/04/24 on the HAP1-OTX2-loxP3 cell line analyse post-scramble by long-range PCR. Two replicates were sequenced by ONT.
+
+# Basecalling
+
+Basecalling is performed with dorado for each run idependently and resulting fastq files are combined.
+
+```{bash, eval = F}
+# FARM
+
+# Load modules
+module load HGI/softpack/groups/escramble/eSCRAMBLE/7
+
+cd /lustre/scratch126/gengen/projects/escramble/Data/ONT/240408
+
+# Replicate 1
+bsub -q "gpu-basement" -gpu - -R'select[mem>32000] rusage[mem=32000]' -M 32000 -o ./FASTQ/dorado_rep_1.log -J ./FASTQ/dorado_rep_1 \
+'dorado basecaller hac --no-trim --emit-fastq ./PCR_LCR_R1/20240408/20240408_1731_MN40897_FAX85838_902e2277/pod5/ \
+> ./FASTQ/OTX2_LCR_scramble_rep_1.fastq'
+
+# Replicate 2
+bsub -q "gpu-basement" -gpu - -R'select[mem>32000] rusage[mem=32000]' -M 32000 -o ./FASTQ/dorado_rep_2.log -J ./FASTQ/dorado_rep_2 \
+'dorado basecaller hac --no-trim --emit-fastq ./PCR_LCR_R2/20240408/20240408_1755_MN44968_FAX86362_4ccab8fb/pod5/ \
+> ./FASTQ/OTX2_LCR_scramble_rep_2.fastq'
+
+# Read statistics
+bsub -q normal -n 16 -R'select[mem>32000] rusage[mem=32000]' -M 32000 -o ./FASTQ/seqkit.stats.log \
+'seqkit stats ./FASTQ/OTX2_LCR_scramble_rep_1.fastq > ./FASTQ/OTX2_LCR_scramble_rep_1_stats.txt
+seqkit stats ./FASTQ/OTX2_LCR_scramble_rep_2.fastq > ./FASTQ/OTX2_LCR_scramble_rep_2_stats.txt'
+
+# Rep 1: 331,765 reads
+# Rep 2: 243,024 reads
+```
+
+# Demultiplexing
+
+Sample are then demultiplexed with seqkit.
+WARNING: we use seqkit grep and seqkit amplicon. seqkit amplicon is only available in seqkit v2 and above (not available in Softpack for now). We need to call for a custom installation.
+
+Primers used for PCR amplification:
+- all #1257:          TCTCAACATCAAAGAGCACCCCT / AGGGGTGCTCTTTGATGTTGAGA
+- very dim #1698:     GGTGCTG-TCGATTCCGTTTGTAGTCGTCTGT-ACCAGCATTGCTTGGAAGTGTT / AACACTTCCAAGCAATGCTGGT-ACAGACGACTACAAACGGAATCGA-CAGCACC   
+- dim #1700:           GTGCTG-TTCGGATTCTATCGTGTTTCCCTA-ACCAGCATTGCTTGGAAGTGTT / AACACTTCCAAGCAATGCTGGT-TAGGGAAACACGATAGAATCCGAA-CAGCAC   
+- bright #1722:       GGTGCTG-TTCTCGCAAAGGCAGAAAGTAGTC-ACCAGCATTGCTTGGAAGTGTT / AACACTTCCAAGCAATGCTGGT-GACTACTTTCTGCCTTTGCGAGAA-CAGCACC
+- very bright #1697:  GGTGCTG-AAGAAAGTTGTCGGTGTCTTTGTG-ACCAGCATTGCTTGGAAGTGTT / AACACTTCCAAGCAATGCTGGT-CACAAAGACACCGACAACTTTCTT-CAGCACC  
+
+```{bash, eval = F}
+# FARM
+
+# Load modules
+module load HGI/softpack/groups/escramble/eSCRAMBLE/7
+
+cd /lustre/scratch126/gengen/projects/escramble/Data/ONT/240408/FASTQ
+
+#################################
+# Replicate 1
+
+# Rep 1 - very dim
+bsub -q normal -n 16 -R'select[mem>32000] rusage[mem=32000]' -M 32000 -o seqkit.demux.log \
+'/nfs/users/nfs_j/jk24/000_Software/miniconda3/bin/seqkit grep --by-seq --max-mismatch 2 -j 16 --pattern "GGTGCTGTCGATTCCGTTTGTAGTCGTCTGT" OTX2_LCR_scramble_rep_1.fastq \
+> OTX2_LCR_scramble_very_dim_rep_1_temp.fastq
+/nfs/users/nfs_j/jk24/000_Software/miniconda3/bin/seqkit amplicon -I --max-mismatch 4 -j 8 -F "TCTCAACATCAAAGAGCACCCCT" -R "ACCAGCATTGCTTGGAAGTGTT" OTX2_LCR_scramble_very_dim_rep_1_temp.fastq \
+> OTX2_LCR_scramble_very_dim_rep_1.fastq
+rm OTX2_LCR_scramble_very_dim_rep_1_temp.fastq'
+
+# Rep 1 - dim
+bsub -q normal -n 16 -R'select[mem>32000] rusage[mem=32000]' -M 32000 -o seqkit.demux.log \
+'/nfs/users/nfs_j/jk24/000_Software/miniconda3/bin/seqkit grep --by-seq --max-mismatch 2 -j 16 --pattern "GTGCTGTTCGGATTCTATCGTGTTTCCCTA" OTX2_LCR_scramble_rep_1.fastq \
+> OTX2_LCR_scramble_dim_rep_1_temp.fastq
+/nfs/users/nfs_j/jk24/000_Software/miniconda3/bin/seqkit amplicon -I --max-mismatch 4 -j 8 -F "TCTCAACATCAAAGAGCACCCCT" -R "ACCAGCATTGCTTGGAAGTGTT" OTX2_LCR_scramble_dim_rep_1_temp.fastq \
+> OTX2_LCR_scramble_dim_rep_1.fastq
+rm OTX2_LCR_scramble_dim_rep_1_temp.fastq'
+
+# Rep 1 - bright
+bsub -q normal -n 16 -R'select[mem>32000] rusage[mem=32000]' -M 32000 -o seqkit.demux.log \
+'/nfs/users/nfs_j/jk24/000_Software/miniconda3/bin/seqkit grep --by-seq --max-mismatch 2 -j 16 --pattern "GGTGCTGTTCTCGCAAAGGCAGAAAGTAGTC" OTX2_LCR_scramble_rep_1.fastq \
+> OTX2_LCR_scramble_bright_rep_1_temp.fastq
+/nfs/users/nfs_j/jk24/000_Software/miniconda3/bin/seqkit amplicon -I --max-mismatch 4 -j 8 -F "TCTCAACATCAAAGAGCACCCCT" -R "ACCAGCATTGCTTGGAAGTGTT" OTX2_LCR_scramble_bright_rep_1_temp.fastq \
+> OTX2_LCR_scramble_bright_rep_1.fastq
+rm OTX2_LCR_scramble_bright_rep_1_temp.fastq'
+
+# Rep 1 - very bright
+bsub -q normal -n 16 -R'select[mem>32000] rusage[mem=32000]' -M 32000 -o seqkit.demux.log \
+'/nfs/users/nfs_j/jk24/000_Software/miniconda3/bin/seqkit grep --by-seq --max-mismatch 2 -j 16 --pattern "GGTGCTGAAGAAAGTTGTCGGTGTCTTTGTG OTX2_LCR_scramble_rep_1.fastq \
+> OTX2_LCR_scramble_very_bright_rep_1_temp.fastq
+/nfs/users/nfs_j/jk24/000_Software/miniconda3/bin/seqkit amplicon -I --max-mismatch 4 -j 8 -F "TCTCAACATCAAAGAGCACCCCT" -R "ACCAGCATTGCTTGGAAGTGTT" OTX2_LCR_scramble_very_bright_rep_1_temp.fastq \
+> OTX2_LCR_scramble_very_bright_rep_1.fastq
+rm OTX2_LCR_scramble_very_bright_rep_1_temp.fastq'
+
+# Replicate 2
+
+# Rep 2 - very dim
+bsub -q normal -n 16 -R'select[mem>32000] rusage[mem=32000]' -M 32000 -o seqkit.demux.log \
+'/nfs/users/nfs_j/jk24/000_Software/miniconda3/bin/seqkit grep --by-seq --max-mismatch 2 -j 16 --pattern "GGTGCTGTCGATTCCGTTTGTAGTCGTCTGT" OTX2_LCR_scramble_rep_2.fastq \
+> OTX2_LCR_scramble_very_dim_rep_2_temp.fastq
+/nfs/users/nfs_j/jk24/000_Software/miniconda3/bin/seqkit amplicon -I --max-mismatch 4 -j 8 -F "TCTCAACATCAAAGAGCACCCCT" -R "ACCAGCATTGCTTGGAAGTGTT" OTX2_LCR_scramble_very_dim_rep_2_temp.fastq \
+> OTX2_LCR_scramble_very_dim_rep_2.fastq
+rm OTX2_LCR_scramble_very_dim_rep_2_temp.fastq'
+
+# Rep 2 - dim
+bsub -q normal -n 16 -R'select[mem>32000] rusage[mem=32000]' -M 32000 -o seqkit.demux.log \
+'/nfs/users/nfs_j/jk24/000_Software/miniconda3/bin/seqkit grep --by-seq --max-mismatch 2 -j 16 --pattern "GTGCTGTTCGGATTCTATCGTGTTTCCCTA" OTX2_LCR_scramble_rep_2.fastq \
+> OTX2_LCR_scramble_dim_rep_2_temp.fastq
+/nfs/users/nfs_j/jk24/000_Software/miniconda3/bin/seqkit amplicon -I --max-mismatch 4 -j 8 -F "TCTCAACATCAAAGAGCACCCCT" -R "ACCAGCATTGCTTGGAAGTGTT" OTX2_LCR_scramble_dim_rep_2_temp.fastq \
+> OTX2_LCR_scramble_dim_rep_2.fastq
+rm OTX2_LCR_scramble_dim_rep_2_temp.fastq'
+
+# Rep 2 - bright
+bsub -q normal -n 16 -R'select[mem>32000] rusage[mem=32000]' -M 32000 -o seqkit.demux.log \
+'/nfs/users/nfs_j/jk24/000_Software/miniconda3/bin/seqkit grep --by-seq --max-mismatch 2 -j 16 --pattern "GGTGCTGTTCTCGCAAAGGCAGAAAGTAGTC" OTX2_LCR_scramble_rep_2.fastq \
+> OTX2_LCR_scramble_bright_rep_2_temp.fastq
+/nfs/users/nfs_j/jk24/000_Software/miniconda3/bin/seqkit amplicon -I --max-mismatch 4 -j 8 -F "TCTCAACATCAAAGAGCACCCCT" -R "ACCAGCATTGCTTGGAAGTGTT" OTX2_LCR_scramble_bright_rep_2_temp.fastq \
+> OTX2_LCR_scramble_bright_rep_2.fastq
+rm OTX2_LCR_scramble_bright_rep_2_temp.fastq'
+
+# Rep 2 - very bright
+bsub -q normal -n 16 -R'select[mem>32000] rusage[mem=32000]' -M 32000 -o seqkit.demux.log \
+'/nfs/users/nfs_j/jk24/000_Software/miniconda3/bin/seqkit grep --by-seq --max-mismatch 2 -j 16 --pattern "GGTGCTGAAGAAAGTTGTCGGTGTCTTTGTG" OTX2_LCR_scramble_rep_2.fastq \
+> OTX2_LCR_scramble_very_bright_rep_2_temp.fastq
+/nfs/users/nfs_j/jk24/000_Software/miniconda3/bin/seqkit amplicon -I --max-mismatch 4 -j 8 -F "TCTCAACATCAAAGAGCACCCCT" -R "ACCAGCATTGCTTGGAAGTGTT" OTX2_LCR_scramble_very_bright_rep_2_temp.fastq \
+> OTX2_LCR_scramble_very_bright_rep_2.fastq
+rm OTX2_LCR_scramble_very_bright_rep_2_temp.fastq'
+
+# Rename for submission
+
+cp /lustre/scratch126/gengen/projects/escramble/Data/ONT/240408/FASTQ/OTX2_LCR_scramble_very_dim_rep_1.fastq \
+/lustre/scratch126/gengen/projects/escramble/Notebook/Summary/OTX2/FASTQ/loxPsym.3.clonal.PCR.dark.rep.1.fastq
+cp /lustre/scratch126/gengen/projects/escramble/Data/ONT/240408/FASTQ/OTX2_LCR_scramble_dim_rep_1.fastq \
+/lustre/scratch126/gengen/projects/escramble/Notebook/Summary/OTX2/FASTQ/loxPsym.3.clonal.PCR.dim.rep.1.fastq
+cp /lustre/scratch126/gengen/projects/escramble/Data/ONT/240408/FASTQ/OTX2_LCR_scramble_bright_rep_1.fastq \
+/lustre/scratch126/gengen/projects/escramble/Notebook/Summary/OTX2/FASTQ/loxPsym.3.clonal.PCR.medium.rep.1.fastq
+cp /lustre/scratch126/gengen/projects/escramble/Data/ONT/240408/FASTQ/OTX2_LCR_scramble_very_bright_rep_1.fastq \
+/lustre/scratch126/gengen/projects/escramble/Notebook/Summary/OTX2/FASTQ/loxPsym.3.clonal.PCR.bright.rep.1.fastq
+
+cp /lustre/scratch126/gengen/projects/escramble/Data/ONT/240408/FASTQ/OTX2_LCR_scramble_very_dim_rep_2.fastq \
+/lustre/scratch126/gengen/projects/escramble/Notebook/Summary/OTX2/FASTQ/loxPsym.3.clonal.PCR.dark.rep.2.fastq
+cp /lustre/scratch126/gengen/projects/escramble/Data/ONT/240408/FASTQ/OTX2_LCR_scramble_dim_rep_2.fastq \
+/lustre/scratch126/gengen/projects/escramble/Notebook/Summary/OTX2/FASTQ/loxPsym.3.clonal.PCR.dim.rep.2.fastq
+cp /lustre/scratch126/gengen/projects/escramble/Data/ONT/240408/FASTQ/OTX2_LCR_scramble_bright_rep_2.fastq \
+/lustre/scratch126/gengen/projects/escramble/Notebook/Summary/OTX2/FASTQ/loxPsym.3.clonal.PCR.medium.rep.2.fastq
+cp /lustre/scratch126/gengen/projects/escramble/Data/ONT/240408/FASTQ/OTX2_LCR_scramble_very_bright_rep_2.fastq \
+/lustre/scratch126/gengen/projects/escramble/Notebook/Summary/OTX2/FASTQ/loxPsym.3.clonal.PCR.bright.rep.2.fastq
+```
+
+Merge all fastq files for alignment and SV calling
+
+```{bash, eval = F}
+# FARM
+
+cd /lustre/scratch126/gengen/projects/escramble/Data/ONT/240408/FASTQ
+
+cat \
+OTX2_LCR_scramble_very_dim_rep_1.fastq \
+OTX2_LCR_scramble_dim_rep_1.fastq \
+OTX2_LCR_scramble_bright_rep_1.fastq \
+OTX2_LCR_scramble_very_bright_rep_1.fastq \
+OTX2_LCR_scramble_very_dim_rep_2.fastq \
+OTX2_LCR_scramble_dim_rep_2.fastq \
+OTX2_LCR_scramble_bright_rep_2.fastq \
+OTX2_LCR_scramble_very_bright_rep_2.fastq \
+> OTX2_LCR_scramble_all_reads.fastq
+```
+
+# Read length
+
+Extract read length
+
+```{bash, eval = F}
+# FARM
+
+cd /lustre/scratch126/gengen/projects/escramble/Data/ONT/240408/FASTQ
+
+bsub -q normal -n 16 -R'select[mem>32000] rusage[mem=32000]' -M 32000 -o seqkit.demux.log \
+'seqkit fx2tab -nl OTX2_LCR_scramble_very_dim_rep_1.fastq > OTX2_LCR_scramble_very_dim_rep_1_read_length.txt'
+
+bsub -q normal -n 16 -R'select[mem>32000] rusage[mem=32000]' -M 32000 -o seqkit.demux.log \
+'seqkit fx2tab -nl OTX2_LCR_scramble_dim_rep_1.fastq > OTX2_LCR_scramble_dim_rep_1_read_length.txt'
+
+bsub -q normal -n 16 -R'select[mem>32000] rusage[mem=32000]' -M 32000 -o seqkit.demux.log \
+'seqkit fx2tab -nl OTX2_LCR_scramble_bright_rep_1.fastq > OTX2_LCR_scramble_bright_rep_1_read_length.txt'
+
+bsub -q normal -n 16 -R'select[mem>32000] rusage[mem=32000]' -M 32000 -o seqkit.demux.log \
+'seqkit fx2tab -nl OTX2_LCR_scramble_very_bright_rep_1.fastq > OTX2_LCR_scramble_very_bright_rep_1_read_length.txt'
+
+bsub -q normal -n 16 -R'select[mem>32000] rusage[mem=32000]' -M 32000 -o seqkit.demux.log \
+'seqkit fx2tab -nl OTX2_LCR_scramble_very_dim_rep_2.fastq > OTX2_LCR_scramble_very_dim_rep_2_read_length.txt'
+
+bsub -q normal -n 16 -R'select[mem>32000] rusage[mem=32000]' -M 32000 -o seqkit.demux.log \
+'seqkit fx2tab -nl OTX2_LCR_scramble_dim_rep_2.fastq > OTX2_LCR_scramble_dim_rep_2_read_length.txt'
+
+bsub -q normal -n 16 -R'select[mem>32000] rusage[mem=32000]' -M 32000 -o seqkit.demux.log \
+'seqkit fx2tab -nl OTX2_LCR_scramble_bright_rep_2.fastq > OTX2_LCR_scramble_bright_rep_2_read_length.txt'
+
+bsub -q normal -n 16 -R'select[mem>32000] rusage[mem=32000]' -M 32000 -o seqkit.demux.log \
+'seqkit fx2tab -nl OTX2_LCR_scramble_very_bright_rep_2.fastq > OTX2_LCR_scramble_very_bright_rep_2_read_length.txt'
+```
+
+```{r, eval = F}
+
+library(dplyr)
+
+setwd("/lustre/scratch126/gengen/projects/escramble")
+
+# Load results and format table
+
+read.length.files <- list.files("/lustre/scratch126/gengen/projects/escramble/Data/ONT/240408/FASTQ/")
+read.length.files <- read.length.files[grepl("read_length.txt", read.length.files)]
+read.length.path <- paste0("/lustre/scratch126/gengen/projects/escramble/Data/ONT/240408/FASTQ/", read.length.files)
+sample.name <- gsub("OTX2_LCR_scramble_", "", read.length.files)
+sample.name <- gsub("_rep_1_read_length.txt", "", sample.name)
+sample.name <- gsub("_rep_2_read_length.txt", "", sample.name)
+sample.rep <- rep(c(1,2), 4)
+
+OTX2.LCR.read.length.df <- tibble()
+for (i in 1:length(read.length.files)) {
+  read.length.path.i <- read.length.path[i]
+  sample.name.i <- sample.name[i]
+  sample.rep.i <- sample.rep[i]
+  read.length.df.i <- read.table(read.length.path.i) %>% select(read.id = V1, read.length = V6) %>% mutate(sample.id = sample.name.i, replicate = sample.rep.i)
+  OTX2.LCR.read.length.df <- rbind(OTX2.LCR.read.length.df, read.length.df.i)
+}
+
+# Save table
+saveRDS(OTX2.LCR.read.length.df, "/lustre/scratch126/gengen/projects/escramble/Notebook/004_OTX2_LCR_scramble/rds/OTX2.LCR.read.length.df.rds")
+```
+
+Plot read length distribution
+
+```{r message=FALSE, warning=FALSE, eval = T}
+library(dplyr)
+library(ggplot2)
+library(ggpubr)
+library(tidyr)
+
+setwd("/lustre/scratch126/gengen/projects/escramble")
+
+# Load data
+
+OTX2.LCR.read.length.df <- readRDS("/lustre/scratch126/gengen/projects/escramble/Notebook/004_OTX2_LCR_scramble/rds/OTX2.LCR.read.length.df.rds")
+
+# Count number of reads per experiments
+
+# Without read length threshold
+
+nrow(OTX2.LCR.read.length.df %>% filter(sample.id == "very_dim" & replicate == 1)) # 42098 reads
+nrow(OTX2.LCR.read.length.df %>% filter(sample.id == "dim" & replicate == 1)) # 40113 reads
+nrow(OTX2.LCR.read.length.df %>% filter(sample.id == "bright" & replicate == 1)) # 10563 reads
+nrow(OTX2.LCR.read.length.df %>% filter(sample.id == "very_bright" & replicate == 1)) # 7560 reads
+
+nrow(OTX2.LCR.read.length.df %>% filter(sample.id == "very_dim" & replicate == 2)) # 19393 reads
+nrow(OTX2.LCR.read.length.df %>% filter(sample.id == "dim" & replicate == 2)) # 22301 reads
+nrow(OTX2.LCR.read.length.df %>% filter(sample.id == "bright" & replicate == 2)) # 4185 reads
+nrow(OTX2.LCR.read.length.df %>% filter(sample.id == "very_bright" & replicate == 2)) # 8147 reads
+
+# Only considering reads longer than 400 bp and shorter than 25000
+
+nrow(OTX2.LCR.read.length.df %>% filter(sample.id == "very_dim" & replicate == 1) %>%
+  filter(as.numeric(read.length) >= 400 & as.numeric(read.length) <= 25000)) # 4935 reads
+nrow(OTX2.LCR.read.length.df %>% filter(sample.id == "dim" & replicate == 1) %>%
+  filter(as.numeric(read.length) >= 400 & as.numeric(read.length) <= 25000)) # 8675 reads
+nrow(OTX2.LCR.read.length.df %>% filter(sample.id == "bright" & replicate == 1) %>%
+  filter(as.numeric(read.length) >= 400 & as.numeric(read.length) <= 25000)) # 5421 reads
+nrow(OTX2.LCR.read.length.df %>% filter(sample.id == "very_bright" & replicate == 1) %>%
+  filter(as.numeric(read.length) >= 400 & as.numeric(read.length) <= 25000)) # 4455 reads
+
+nrow(OTX2.LCR.read.length.df %>% filter(sample.id == "very_dim" & replicate == 2) %>%
+  filter(as.numeric(read.length) >= 400 & as.numeric(read.length) <= 25000)) # 5766 reads
+nrow(OTX2.LCR.read.length.df %>% filter(sample.id == "dim" & replicate == 2) %>%
+  filter(as.numeric(read.length) >= 400 & as.numeric(read.length) <= 25000)) # 3527 reads
+nrow(OTX2.LCR.read.length.df %>% filter(sample.id == "bright" & replicate == 2) %>%
+  filter(as.numeric(read.length) >= 400 & as.numeric(read.length) <= 25000)) # 3096 reads
+nrow(OTX2.LCR.read.length.df %>% filter(sample.id == "very_bright" & replicate == 2) %>%
+  filter(as.numeric(read.length) >= 400 & as.numeric(read.length) <= 25000)) # 5977 reads
+
+# Plot
+
+OTX2.LCR.read.length.very.dim.plot <- OTX2.LCR.read.length.df %>% filter(read.length >= 400 & read.length <= 25000) %>% 
+  filter(sample.id == "very_dim") %>% 
+  ggplot(aes(x=read.length)) +
+  geom_histogram(binwidth=200, fill="#3E54A4") + ggtitle("very dim") + xlab("Read length (bp)") + xlim(400, 25000) + ylim(0,7000) +
+  theme_bw() + theme(aspect.ratio=0.4, panel.grid.major = element_blank())
+OTX2.LCR.read.length.very.dim.plot
+
+OTX2.LCR.read.length.dim.plot <- OTX2.LCR.read.length.df %>% filter(read.length >= 400 & read.length <= 25000) %>% 
+  filter(sample.id == "dim") %>% 
+  ggplot(aes(x=read.length)) +
+  geom_histogram(binwidth=200, fill="#3988C2") + ggtitle("dim") + xlab("Read length (bp)") + xlim(400, 25000) + ylim(0,7000) +
+  theme_bw() + theme(aspect.ratio=0.4, panel.grid.major = element_blank())
+OTX2.LCR.read.length.dim.plot
+
+OTX2.LCR.read.length.bright.plot <- OTX2.LCR.read.length.df %>% filter(read.length >= 400 & read.length <= 25000) %>% 
+  filter(sample.id == "bright") %>% 
+  ggplot(aes(x=read.length)) +
+  geom_histogram(binwidth=200, fill="#E36826") + ggtitle("bright") + xlab("Read length (bp)") + xlim(400, 25000) + ylim(0,7000) +
+  theme_bw() + theme(aspect.ratio=0.4, panel.grid.major = element_blank())
+OTX2.LCR.read.length.bright.plot
+
+OTX2.LCR.read.length.very.bright.plot <- OTX2.LCR.read.length.df %>% filter(read.length >= 400 & read.length <= 25000) %>% 
+  filter(sample.id == "very_bright") %>% 
+  ggplot(aes(x=read.length)) +
+  geom_histogram(binwidth=200, fill="#EF4136") + ggtitle("very bright") + xlab("Read length (bp)") + xlim(400, 25000) + ylim(0,7000) +
+  theme_bw() + theme(aspect.ratio=0.4, panel.grid.major = element_blank())
+OTX2.LCR.read.length.very.bright.plot
+
+pdf("./Notebook/Rplots/OTX2/OTX2_LCR_scramble_read_length_distribution.pdf", width=4, height=8, useDingbats=FALSE)
+ggarrange(OTX2.LCR.read.length.very.dim.plot, OTX2.LCR.read.length.dim.plot, OTX2.LCR.read.length.bright.plot, OTX2.LCR.read.length.very.bright.plot, nrow = 4)
+dev.off()
+
+# Transform read count into nucleotide count (res = 200 nt)
+
+OTX2.LCR.nuc.count.df <- OTX2.LCR.read.length.df %>% mutate(ints = (as.numeric(cut(read.length, seq(0, 25000, 50), include.lowest = TRUE, right = FALSE))*50)+50) %>% 
+  drop_na() %>% group_by(sample.id, ints) %>% summarise(ints = mean(ints, na.rm = T), read.count = dplyr::n()) %>% mutate(nuc.count = read.count*ints)
+
+# Plot
+
+OTX2.LCR.nuc.count.very.dim.plot <- OTX2.LCR.nuc.count.df %>%
+  filter(sample.id == "very_dim") %>% 
+  ggplot(aes(x=ints, y=nuc.count/10e6)) +
+  geom_ribbon(aes(ymin = 0, ymax = nuc.count/10e6), fill = "#3E54A4", alpha=0.3, position = "identity") +
+  geom_line(linewidth = 0.25) + ylim(0,5) + xlim(0,25000) +
+  xlab("Read length (bp)") + ylab("Nucleotide count (x 10e6)") + ggtitle("very dim") +
+  theme_bw() + theme(aspect.ratio=2.5, panel.grid.major = element_blank()) + coord_flip()
+OTX2.LCR.nuc.count.very.dim.plot
+
+OTX2.LCR.nuc.count.dim.plot <- OTX2.LCR.nuc.count.df %>%
+  filter(sample.id == "dim") %>% 
+  ggplot(aes(x=ints, y=nuc.count/10e6)) +
+  geom_ribbon(aes(ymin = 0, ymax = nuc.count/10e6), fill = "#3988C2", alpha=0.3, position = "identity") +
+  geom_line(linewidth = 0.25) + ylim(0,5) + xlim(0,25000) +
+  xlab("Read length (bp)") + ylab("Nucleotide count (x 10e6)") + ggtitle("dim") +
+  theme_bw() + theme(aspect.ratio=2.5, panel.grid.major = element_blank()) + coord_flip()
+OTX2.LCR.nuc.count.dim.plot
+
+OTX2.LCR.nuc.count.bright.plot <- OTX2.LCR.nuc.count.df %>%
+  filter(sample.id == "bright") %>% 
+  ggplot(aes(x=ints, y=nuc.count/10e6)) +
+  geom_ribbon(aes(ymin = 0, ymax = nuc.count/10e6), fill = "#E36826", alpha=0.3, position = "identity") +
+  geom_line(linewidth = 0.25) + ylim(0,5) + xlim(0,25000) +
+  xlab("Read length (bp)") + ylab("Nucleotide count (x 10e6)") + ggtitle("bright") +
+  theme_bw() + theme(aspect.ratio=2.5, panel.grid.major = element_blank()) + coord_flip()
+OTX2.LCR.nuc.count.bright.plot
+
+OTX2.LCR.nuc.count.very.bright.plot <- OTX2.LCR.nuc.count.df %>%
+  filter(sample.id == "very_bright") %>% 
+  ggplot(aes(x=ints, y=nuc.count/10e6)) +
+  geom_ribbon(aes(ymin = 0, ymax = nuc.count/10e6), fill = "#EF4136", alpha=0.3, position = "identity") +
+  geom_line(linewidth = 0.25) + ylim(0,5) + xlim(0,25000) +
+  xlab("Read length (bp)") + ylab("Nucleotide count (x 10e6)") + ggtitle("very bright") +
+  theme_bw() + theme(aspect.ratio=2.5, panel.grid.major = element_blank()) + coord_flip()
+OTX2.LCR.nuc.count.very.bright.plot
+
+pdf("./Notebook/Rplots/OTX2/OTX2_LCR_scramble_read_length_distribution_nuc_count.pdf", width=8, height=4, useDingbats=FALSE)
+ggarrange(OTX2.LCR.nuc.count.very.dim.plot, OTX2.LCR.nuc.count.dim.plot, OTX2.LCR.nuc.count.bright.plot, OTX2.LCR.nuc.count.very.bright.plot, nrow = 1, ncol = 4)
+dev.off()
+
+#scp -r farm:/lustre/scratch126/gengen/projects/escramble/Notebook/Rplots/OTX2 /Users/pm23/Desktop/Projects/EnhancerScramble/Rplots
+```
+
+# Alignment
+
+Reads are aligned using bwa mem
+
+```{bash, eval = F}
+# FARM
+
+cd /lustre/scratch126/gengen/projects/escramble/Data/ONT/240408
+
+# Align
+bsub -q normal -n 12 -R'select[mem>32000] rusage[mem=32000] span[hosts=1]' -M32000 -o ./SAM/bwa_mem.log -J bwa \
+'bwa mem -x ont2d -t 12 /lustre/scratch126/gengen/teams/parts/pm23/Genomes/hg38/hg38.fa.gz ./FASTQ/OTX2_LCR_scramble_all_reads.fastq \
+> ./SAM/OTX2_LCR_scramble_all_reads.sam
+samtools sort -@ 12 -m 2G ./SAM/OTX2_LCR_scramble_all_reads.sam -o ./BAM/OTX2_LCR_scramble_all_reads.bam
+samtools index -@ 12 ./BAM/OTX2_LCR_scramble_all_reads.bam'
+```
+
+# Structural variant calling
+
+Call structural variants with Savana (https://github.com/cortes-ciriano-lab/savana).
+Use a custom installation from Jonas Koeppel.
+Use a sequenced HAP1 WT as "normal" sample and the scramble clones as "tumour".
+
+```{bash, eval = F}
+# FARM
+
+cd /lustre/scratch126/gengen/projects/escramble/Data/ONT/240408
+
+bsub -q normal -n 12 -R'select[mem>100000] rusage[mem=100000] span[hosts=1]' -M 100000 -o ./vcf/savana.log -J savana \
+'source /lustre/scratch123/hgi/projects/genome_scramble/software/miniconda3/etc/profile.d/conda.sh
+conda activate py310
+savana run --depth 5 --threads 12 \
+--tumour ./BAM/OTX2_LCR_scramble_all_reads.bam \
+--normal /lustre/scratch123/hgi/projects/genome_scramble/genome_scramble_submission/genome_sequencing/bam/HAP1.bam \
+--outdir ./vcf/OTX2_LCR_scramble_all_SVs \
+--ref /lustre/scratch126/gengen/teams/parts/pm23/Genomes/hg38/hg38.fa'
+```
+
+# Structural variants characterisation and analysis
+
+This chunk performs:
+- Load and format savana vcf files
+- Call SVs
+- Format SV data
+
+```{r, eval = F}
+
+library(forcats)
+
+setwd("/lustre/scratch126/gengen/projects/escramble/Notebook/")
+
+source("./Scripts/SV.call.LCR.r")
+
+# Define path to savana analysis results
+LCR.scramble.path.vcf <- "/lustre/scratch126/gengen/projects/escramble/Data/ONT/240408/vcf/OTX2_LCR_scramble_all_SVs/OTX2_LCR_scramble_all_reads.sv_breakpoints.vcf"
+LCR.scramble.path.tsv <- "/lustre/scratch126/gengen/projects/escramble/Data/ONT/240408/vcf/OTX2_LCR_scramble_all_SVs/OTX2_LCR_scramble_all_reads.sv_breakpoints_read_support.tsv"
+
+# Call SVs
+LCR.scramble.savana.genotype.df <- OTX2.SV.call.savana(LCR.scramble.path.vcf, LCR.scramble.path.tsv)
+
+# Save raw table
+saveRDS(LCR.scramble.savana.genotype.df, "/lustre/scratch126/gengen/projects/escramble/Notebook/004_OTX2_LCR_scramble/rds/LCR.scramble.savana.genotype.df.rds")
+
+# Format SV events - we filter for read mapped to our sample
+all.savana.LCR.read.length.df <- readRDS("/lustre/scratch126/gengen/projects/escramble/Notebook/004_OTX2_LCR_scramble/rds/OTX2.LCR.read.length.df.rds")
+
+LCR.scramble.savana.genotype.read.summary.df <- LCR.scramble.savana.genotype.df %>% filter(read_names %in% all.savana.LCR.read.length.df$read.id) %>% group_by(read_names) %>% summarise(genotype = paste0(genotype, collapse = "-"), ) %>%
+    group_by(genotype) %>% summarise(supp_reads = dplyr::n(), read_names = paste0(read_names, collapse = "_")) %>% filter(!grepl("DUP", genotype)) %>% arrange(-supp_reads)
+
+# Save processed table
+saveRDS(LCR.scramble.savana.genotype.read.summary.df, "/lustre/scratch126/gengen/projects/escramble/Notebook/004_OTX2_LCR_scramble/rds/LCR.scramble.savana.genotype.read.summary.df.rds")
+```
+
+# Coverage plots
+
+Prepare coverage plots of SVs for QC and visualisation
+File formarting is reported in the supporting R code: /lustre/scratch126/gengen/projects/escramble/Notebook/004_OTX2_LCR_scramble_supporting_codes.R
+
+```{r message=FALSE, warning=FALSE, eval = T}
+
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(forcats)
+library(wesanderson)
+library(ggpubr)
+
+setwd("/lustre/scratch126/gengen/projects/escramble/Notebook/")
+
+# Define region to plot
+chr <- "chr14"
+from <- 56884500
+to <- 56907900
+
+# Load data
+LCR.savana.deletion.coverage.df <- readRDS("/lustre/scratch126/gengen/projects/escramble/Notebook/004_OTX2_LCR_scramble/rds/LCR.savana.deletion.coverage.df.rds")
+LCR.savana.inversion.coverage.df <- readRDS("/lustre/scratch126/gengen/projects/escramble/Notebook/004_OTX2_LCR_scramble/rds/LCR.savana.inversion.coverage.df.rds")
+
+# Deletion
+
+LCR.deletion.palette <- wes_palette("Zissou1", length(unique(LCR.savana.deletion.coverage.df$variant)), type = "continuous")
+LCR.savana.deletion.coverage.plot <- LCR.savana.deletion.coverage.df %>% ggplot(aes(x = start/1e6, y = score, group=1, fill = variant)) +
+  geom_area() +
+  geom_line(col = "black", linewidth = 0.25) +
+  ylab("Read count") + xlab("Coordinate [Mb]") +
+  scale_fill_manual(values=c(LCR.deletion.palette)) +
+  xlim(from/1e6, to/1e6) +
+  geom_vline(xintercept=56884634/1e6, linetype="dashed") +
+  geom_vline(xintercept=56898376/1e6, linetype="dashed") +
+  geom_vline(xintercept=56907608/1e6, linetype="dashed") +
+  facet_wrap(~ variant, scales = "free", ncol = 3) +
+  theme_bw() + theme(aspect.ratio=0.25, panel.grid.major = element_blank(), strip.background = element_blank(), legend.position="none")
+LCR.savana.deletion.coverage.plot
+
+LCR.inversion.palette <- wes_palette("Zissou1", length(unique(LCR.savana.inversion.coverage.df$variant)), type = "continuous")
+LCR.savana.inversion.coverage.plot <- LCR.savana.inversion.coverage.df %>% ggplot(aes(x = start/1e6, y = score, group=1, fill = variant)) +
+  geom_area(aes(group = strand)) +
+  geom_line(aes(group = strand), col = "black", linewidth = 0.25) +
+  ylab("Read count") + xlab("Coordinate [Mb]") +
+  scale_fill_manual(values=c(LCR.inversion.palette)) +
+  xlim(from/1e6, to/1e6) +
+  geom_hline(yintercept=0, linetype="solid") +
+  geom_vline(xintercept=56884634/1e6, linetype="dashed") +
+  geom_vline(xintercept=56898376/1e6, linetype="dashed") +
+  geom_vline(xintercept=56907608/1e6, linetype="dashed") +
+  facet_wrap(~ variant, scales = "free", ncol = 3) +
+  theme_bw() + theme(aspect.ratio=0.25, panel.grid.major = element_blank(), strip.background = element_blank(), legend.position="none")
+LCR.savana.inversion.coverage.plot
+
+pdf("./Rplots/OTX2/coverage.LCR.deletion.pdf", width=10, height=10, useDingbats=FALSE)
+LCR.savana.deletion.coverage.plot
+dev.off()
+
+pdf("./Rplots/OTX2/coverage.LCR.inversion.pdf", width=10, height=10, useDingbats=FALSE)
+LCR.savana.inversion.coverage.plot
+dev.off()
+
+#scp -r farm:/lustre/scratch126/gengen/projects/escramble/Notebook/Rplots/OTX2 /Users/pm23/Desktop/Projects/EnhancerScramble/Rplots
+```
+
+# Effect on gene expression
+
+Prepare gene expression [sorting gates] plots of SVs
+File formarting and computation is reported in the supporting R code: /lustre/scratch126/gengen/projects/escramble/Notebook/004_OTX2_LCR_scramble_supporting_codes.R
+
+```{r message=FALSE, warning=FALSE, eval = T}
+
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(forcats)
+library(wesanderson)
+library(ggpubr)
+
+setwd("/lustre/scratch126/gengen/projects/escramble/Notebook/")
+
+# Load results
+
+LCR.savana.SV.summary <- readRDS("/lustre/scratch126/gengen/projects/escramble/Notebook/004_OTX2_LCR_scramble/rds/LCR.savana.SV.summary.rds")
+
+LCR.savana.SV.summary.clean.df <- LCR.savana.SV.summary %>%
+  dplyr::select(genotype, replicate = rep, gate = sample, read_count = count, read_percentage = perc) %>%
+  mutate(gate = case_when(gate == "very_dim" ~ "dark",
+                          gate == "dim" ~ "dim",
+                          gate == "bright" ~ "medium",
+                          gate == "very_bright" ~ "bright")) %>% 
+  mutate(read_count = replace_na(read_count, 0)) %>% arrange(genotype)
+write.table(LCR.savana.SV.summary.clean.df, "./Summary/OTX2/loxPsym.3.clonal.PCR.summary.tsv", sep="\t", col.names = T, row.names = F, quote = F)
+
+# Prepare plots
+
+LCR.palette <- wes_palette("Zissou1", length(unique(LCR.savana.SV.summary$genotype)), type = "continuous")
+LCR.savana.SV.plot <- LCR.savana.SV.summary %>% 
+  mutate(sample = case_when(sample == "very_dim" ~ "dark", sample == "dim" ~ "dim", sample == "bright" ~ "medium", sample == "very_bright" ~ "bright")) %>% 
+  mutate(SAMPLE = fct_relevel(sample, "dark", "dim", "medium", "bright")) %>%
+  ggplot(aes(x=SAMPLE, y=perc, group=1, col = genotype)) +
+  geom_point(aes(x = SAMPLE, y = perc), size = 1) +
+  geom_point(stat='summary', fun.y=sum, size = 2) +
+  geom_line(stat='summary', fun.y=sum) +
+  ylab("Percent of events in sorting gate") +
+  scale_colour_manual(values=c(LCR.palette)) +
+  facet_wrap(~ genotype, scales = "free", ncol = 5) +
+  theme_bw() + theme(aspect.ratio=1, strip.background = element_blank(), panel.grid.major = element_blank(), axis.title.x=element_blank(), axis.text.x = element_text(angle = 45, vjust = 1, hjust=1), legend.position="none")
+LCR.savana.SV.plot
+
+pdf("./Rplots/OTX2/savana.LCR.gate.plot.pdf", width=10, height=10, useDingbats=FALSE)
+LCR.savana.SV.plot
+dev.off()
+
+#scp -r farm:/lustre/scratch126/gengen/projects/escramble/Notebook/Rplots/OTX2 /Users/pm23/Desktop/Projects/EnhancerScramble/Rplots
+```
+
+Compute gene expression score
+
+```{r, eval = F}
+# Load results
+
+LCR.savana.SV.summary <- readRDS("/lustre/scratch126/gengen/projects/escramble/Notebook/004_OTX2_LCR_scramble/rds/LCR.savana.SV.summary.rds")
+
+LCR.savana.SV.gene.exp.score.df <- LCR.savana.SV.summary %>% 
+  group_by(genotype, rep) %>%
+  mutate(scale = perc/sum(perc)) %>% drop_na() %>%
+  dplyr::select(genotype, sample, rep, scale) %>% ungroup() %>% distinct() %>% 
+  pivot_wider(names_from = sample, values_from = scale) %>%
+  mutate(across(where(is.numeric), ~replace_na(., 0))) %>% 
+  mutate(score = (-1*very_dim)+(-0.5*dim)+(0.5*bright)+(1*very_bright))
+
+# Sacle to WT and full deletion
+
+LCR.savana.SV.score.means.df <- LCR.savana.SV.gene.exp.score.df %>% group_by(genotype) %>% summarise(mean=mean(score, na.rm = T))
+# WT = 0.721, DEL_A-C = -0.307
+LCR.savana.SV.gene.exp.score.df <- LCR.savana.SV.gene.exp.score.df %>% mutate(score.norm = ((score+0.307)/(0.721+0.307))*100) 
+saveRDS(LCR.savana.SV.gene.exp.score.df, "/lustre/scratch126/gengen/projects/escramble/Notebook/004_OTX2_LCR_scramble/rds/LCR.savana.SV.gene.exp.score.df.rds")
+```
+
+# Comparision to cas9 enrichment approach
+
+This chuncks aim to compare the long-range PCR ans cas9 enrichment by comparing the representation of structural variants detected using either of the apporach.
+Analysis of the LCR cas9 enrichment experiments is provided in /lustre/scratch126/gengen/projects/escramble/Notebook/003_OTX2_superenhancer_scramble_reanalysis_v1_1.Rmd
+
+Compare the representation of SV, read coverage and relative gene expression score from both approach
+
+```{r, eval = F}
+# R
+
+##############################################################################
+# Load results
+
+# Raw observations
+
+# PCR
+PCR.SV.LCR.df <- readRDS("/lustre/scratch126/gengen/projects/escramble/Notebook/004_OTX2_LCR_scramble/rds/LCR.savana.SV.summary.rds")
+
+# cas9
+cas9.SV.df <- read.table("/lustre/scratch126/gengen/projects/escramble/Data/JK_data/summary_table/OTX2_scramble_outcomes.tsv", sep = "\t", header = T)
+cas9.SV.LCR.df <- cas9.SV.df %>% filter(experiment == "3_loxPsym_clone")
+# 9 SVs
+
+# Gene expression scores
+
+# PCR
+PCR.gene.exp.score.LCR.df <- readRDS("/lustre/scratch126/gengen/projects/escramble/Notebook/004_OTX2_LCR_scramble/rds/LCR.savana.SV.gene.exp.score.df.rds")
+
+# cas9
+cas9.gene.exp.score.LCR.df <- readRDS("/lustre/scratch126/gengen/projects/escramble/Notebook/004_OTX2_LCR_scramble/rds/SV.3.loxPsym.cas9.SV.score.df.rds")
+
+
+##############################################################################
+# Reformat table for comparision
+
+# Define variant name
+
+unique(cas9.SV.LCR.df$variant_name)
+# "∆R4"      "iR4"      "∆R45"     "iR45"     "∆R5"     
+# "iR5"      "∆R4+iR5"  "wildtype" "iR4+∆R5" 
+
+unique(PCR.SV.LCR.df$genotype)
+# "WT"              "DEL_A-C"         "DEL_A-B"        
+# "DEL_B-C"         "INV_A-C"         "INV_A-B"        
+# "INV_B-C"         "DEL_A-B_INV_B-C" "INV_A-B_DEL_B-C"
+
+# Reformat and combine
+
+# Bind data
+PCR.SV.LCR.format.df <- PCR.SV.LCR.df %>% mutate(genotype = case_when(genotype == "WT" ~ "wildtype",
+                                                               genotype == "DEL_A-C" ~ "∆R45",
+                                                               genotype == "DEL_A-B" ~ "∆R4",
+                                                               genotype == "DEL_B-C" ~ "∆R5",
+                                                               genotype == "INV_A-C" ~ "iR45",
+                                                               genotype == "INV_A-B" ~ "iR4",
+                                                               genotype == "INV_B-C" ~ "iR5",
+                                                               genotype == "DEL_A-B_INV_B-C" ~ "∆R4+iR5",
+                                                               genotype == "INV_A-B_DEL_B-C" ~ "iR4+∆R5")) %>%
+                                          mutate(sample = case_when(sample == "very_dim" ~ "dark",
+                                                                    sample == "dim" ~ "dim",
+                                                                    sample == "bright" ~ "medium",
+                                                                    sample == "very_bright" ~ "bright")) %>% 
+  dplyr::select(variant_name = genotype, gate = sample, replicate = rep, supp_reads = count, perc_reads = perc) %>% mutate(experiment = "PCR")
+cas9.SV.LCR.format.df <- cas9.SV.LCR.df  %>% 
+  dplyr::select(variant_name, gate, replicate, supp_reads, perc_reads) %>% mutate(experiment = "cas9") 
+SV.LCR.summary.bind.df <- rbind(PCR.SV.LCR.format.df, cas9.SV.LCR.format.df)
+saveRDS(SV.LCR.summary.bind.df, "/lustre/scratch126/gengen/projects/escramble/Notebook/004_OTX2_LCR_scramble/rds/SV.LCR.summary.bind.df.rds")
+
+# Join data
+
+PCR.SV.LCR.format.2.df <- PCR.SV.LCR.format.df %>% group_by(variant_name, gate) %>% 
+  summarise(supp_reads_sum_PCR = sum(supp_reads, na.rm = T))
+cas9.SV.LCR.format.2.df <- cas9.SV.LCR.format.df %>% group_by(variant_name, gate) %>% 
+  summarise(supp_reads_sum_cas9 = sum(supp_reads, na.rm = T))
+SV.LCR.summary.join.df <- PCR.SV.LCR.format.2.df %>% left_join(cas9.SV.LCR.format.2.df, by = c("variant_name", "gate"))
+saveRDS(SV.LCR.summary.join.df, "/lustre/scratch126/gengen/projects/escramble/Notebook/004_OTX2_LCR_scramble/rds/SV.LCR.summary.join.df.rds")
+
+# Gene expression scores
+
+PCR.gene.exp.score.LCR.format.df <- PCR.gene.exp.score.LCR.df %>% 
+  mutate(
+    genotype = case_when(
+      genotype == "WT" ~ "wildtype",
+      genotype == "DEL_A-C" ~ "∆R45",
+      genotype == "DEL_A-B" ~ "∆R4",
+      genotype == "DEL_B-C" ~ "∆R5",
+      genotype == "INV_A-C" ~ "iR45",
+      genotype == "INV_A-B" ~ "iR4",
+      genotype == "INV_B-C" ~ "iR5",
+      genotype == "DEL_A-B_INV_B-C" ~ "∆R4+iR5",
+      genotype == "INV_A-B_DEL_B-C" ~ "iR4+∆R5"
+    )
+  ) %>%
+  dplyr::select(variant_name = genotype, replicate = rep, score.PCR = score.norm) %>%
+  group_by(variant_name) %>%
+  summarise(
+    score.PCR.mean = mean(score.PCR, na.rm = TRUE),
+    score.PCR.diff = abs(score.PCR.mean - score.PCR)
+  ) %>%
+  ungroup() %>%
+  distinct(variant_name, score.PCR.mean, .keep_all = TRUE)
+
+cas9.gene.exp.score.LCR.format.df <- cas9.gene.exp.score.LCR.df %>%
+  dplyr::select(variant_name, replicate, score.cas9 = score.norm) %>% group_by(variant_name) %>%
+  summarise(
+    score.cas9.mean = mean(score.cas9, na.rm = TRUE),
+    score.cas9.diff = abs(score.cas9.mean - score.cas9)
+  ) %>%
+  ungroup() %>%
+  distinct(variant_name, score.cas9.mean, .keep_all = TRUE)
+
+gene.exp.score.LCR.comp.df <- PCR.gene.exp.score.LCR.format.df %>% left_join(cas9.gene.exp.score.LCR.format.df, by = "variant_name") %>% ungroup() %>% distinct()
+saveRDS(gene.exp.score.LCR.comp.df, "/lustre/scratch126/gengen/projects/escramble/Notebook/004_OTX2_LCR_scramble/rds/gene.exp.score.LCR.comp.df.rds")
+```
+
+Plot results
+
+```{r message=FALSE, warning=FALSE, eval = T}
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(forcats)
+library(scales)
+library(ggpubr)
+
+setwd("/lustre/scratch126/gengen/projects/escramble")
+
+# SV diversity
+
+SV.LCR.summary.bind.df <- readRDS("/lustre/scratch126/gengen/projects/escramble/Notebook/004_OTX2_LCR_scramble/rds/SV.LCR.summary.bind.df.rds")
+
+SV.div.cas9.plot <- SV.LCR.summary.bind.df %>% filter(experiment == "cas9") %>% group_by(variant_name, gate) %>% summarise(perc_reads = mean(perc_reads, na.rm = T)) %>% ungroup() %>% 
+  group_by(gate) %>% mutate(perc_reads_scaled = perc_reads / sum(perc_reads) * 100) %>% ungroup() %>% 
+  mutate(GATE = fct_relevel(gate, "dark", "dim", "medium", "bright")) %>%
+  ggplot(aes(x=GATE, y=perc_reads_scaled, fill=variant_name)) +
+  geom_bar(stat="identity") + ylab("Percentage of observed reads") + ggtitle("cas9 enrichment") +
+  theme_bw() + theme(aspect.ratio=2, panel.grid.minor = element_blank(), axis.title.x=element_blank(), axis.text.x = element_text(angle = 45, vjust = 1, hjust=1))
+SV.div.cas9.plot
+
+SV.div.PCR.plot <- SV.LCR.summary.bind.df %>% filter(experiment == "PCR") %>% group_by(variant_name, gate) %>% summarise(perc_reads = mean(perc_reads, na.rm = T)) %>% ungroup() %>% 
+  group_by(gate) %>% mutate(perc_reads_scaled = perc_reads / sum(perc_reads) * 100) %>% ungroup() %>% 
+  mutate(GATE = fct_relevel(gate, "dark", "dim", "medium", "bright")) %>%
+  ggplot(aes(x=GATE, y=perc_reads_scaled, fill=variant_name)) +
+  geom_bar(stat="identity") + ylab("Percentage of observed reads") + ggtitle("long-range PCR") +
+  theme_bw() + theme(aspect.ratio=2, panel.grid.minor = element_blank(), axis.title.x=element_blank(), axis.text.x = element_text(angle = 45, vjust = 1, hjust=1))
+SV.div.PCR.plot
+
+# Read count corelation
+
+SV.LCR.summary.join.df <- readRDS("/lustre/scratch126/gengen/projects/escramble/Notebook/004_OTX2_LCR_scramble/rds/SV.LCR.summary.join.df.rds")
+# Compute corelation
+cor.test(log10(SV.LCR.summary.join.df$supp_reads_sum_cas9), log10(SV.LCR.summary.join.df$supp_reads_sum_PCR), method = "spearman")
+# Plot
+SV.read.cor.plot <- SV.LCR.summary.join.df %>% ggplot(aes(x=supp_reads_sum_cas9, y=supp_reads_sum_PCR, color = variant_name, shape = gate)) +
+  geom_point(size = 3) + scale_x_log10(labels = label_number(), limits = c(1,1000)) + scale_y_log10(labels = label_number()) +
+  geom_smooth(aes(group = 1), method = "lm", se = T, color = "black", size = 0.5) +
+  xlab("Read count [cas9 enrichment]") + ylab("Read count [long-range PCR]") + ggtitle("Spearman = 0.592, P = 2.258e-04") +
+  theme_bw() + theme(aspect.ratio=1, panel.grid.minor = element_blank())
+SV.read.cor.plot
+
+summary(SV.LCR.summary.join.df$supp_reads_sum_PCR/SV.LCR.summary.join.df$supp_reads_sum_cas9)
+
+# Gene expression score corelation
+
+gene.exp.score.LCR.comp.df <- readRDS("/lustre/scratch126/gengen/projects/escramble/Notebook/004_OTX2_LCR_scramble/rds/gene.exp.score.LCR.comp.df.rds")
+
+# Compute corelation
+cor.test(gene.exp.score.LCR.comp.df$score.PCR.mean, gene.exp.score.LCR.comp.df$score.cas9.mean, method = "spearman")
+# Plot
+gene.exp.score.LCR.comp.plot <- gene.exp.score.LCR.comp.df %>% ggplot(aes(x = score.cas9.mean, y = score.PCR.mean, color = variant_name)) +
+  geom_smooth(aes(group = 1), method = "lm", se = T, color = "black", size = 0.5) +
+  geom_errorbar(aes(ymin = score.PCR.mean-score.PCR.diff, ymax = score.PCR.mean+score.PCR.diff), width = 0.2, color = "black") +
+  geom_errorbarh(aes(xmin = score.cas9.mean-score.cas9.diff, xmax = score.cas9.mean+score.cas9.diff), height = 0.2, color = "black") +
+  geom_point(size = 3) +
+  xlab("Relative gene expression [cas9 enrichment]") + ylab("Relative gene expression [long-range PCR]") + ggtitle("Spearman = 0.7166667, P = 0.03687") +
+  theme_bw() + theme(aspect.ratio=1, panel.grid.minor = element_blank())
+gene.exp.score.LCR.comp.plot
+
+pdf("./Notebook/Rplots/OTX2/Comp_PCR_cas9_part_1.pdf", width=6, height=4, useDingbats=FALSE)
+ggarrange(SV.div.cas9.plot, SV.div.PCR.plot, nrow = 1)
+dev.off()
+
+pdf("./Notebook/Rplots/OTX2/Comp_PCR_cas9_part_2.pdf", width=10, height=4, useDingbats=FALSE)
+ggarrange(SV.read.cor.plot, gene.exp.score.LCR.comp.plot, nrow = 1)
+dev.off()
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

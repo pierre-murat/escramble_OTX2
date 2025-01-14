@@ -1,0 +1,2 @@
+biosample	DHS	ATAC	H3K27ac	default_accessibility_feature	HiC_file	HiC_type	HiC_resolution	alt_TSS	alt_genes
+HAP1	ENCFF303JZI.bam,ENCFF427IVB.bam		ENCFF496HYU.bam,ENCFF806PAF.bam	DHS	https://www.encodeproject.org/files/ENCFF898HRO/@@download/ENCFF898HRO.hic	hic	5000		

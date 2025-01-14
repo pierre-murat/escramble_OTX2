@@ -1,0 +1,1913 @@
+---
+title: "OTX2 loxP7 architectures"
+author: "Pierre Murat"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document:
+    toc: yes
+    toc_float: yes
+    toc_collapsed: yes
+    toc_depth: 3
+    number_sections: yes
+    theme: lumen
+  pdf_document:
+    toc: yes
+    toc_depth: '3'
+---
+
+This notebook report the analysis of the architectures identified from the scrambling of the loxP7 heterogeneous cell populations
+
+```{r}
+setwd("/lustre/scratch126/gengen/projects/escramble")
+```
+
+# Basecalling
+
+This chunk reports the processing of ONT reads from the scrambling experiment performed on the 11/06/2024 (Benchling - 002. OTX2 scrambling) on the HAP1-OTX2-loxP3 1-4 cell line. Two replicates were sequenced by ONT split over three runs on the 15/07/2024, 30/07/24 and 31/07/31 (Benchling - 004. Nanopore sequencing of long range PCR amplicons)
+
+Basecalling is performed with dorado for each run idependently and resulting fastq files are combined
+
+```{bash, eval = F}
+# FARM
+
+# Load modules
+module load HGI/softpack/groups/escramble/eSCRAMBLE/7
+
+################################################
+# 15/07/24 run
+
+# Replicate 1
+bsub -q "gpu-basement" -gpu - -R'select[mem>32000] rusage[mem=32000]' -M 32000 \
+-o /lustre/scratch126/gengen/projects/escramble/Data/ONT/240715/FASTQ/dorado_OTX2_14_1_scramble_rep_1.log -J dorado_OTX2_14_1_scramble_rep_1 \
+'dorado basecaller hac --no-trim --emit-fastq \
+/lustre/scratch126/gengen/projects/escramble/Data/ONT/240715/240715_PM_OTX2_14_1/20240715_1352_MN40897_FAX17531_3c89a6d0/pod5/ \
+> /lustre/scratch126/gengen/projects/escramble/Data/ONT/240715/FASTQ/OTX2_14_1_scramble_rep_1.fastq'
+
+# Replicate 2
+bsub -q "gpu-basement" -gpu - -R'select[mem>32000] rusage[mem=32000]' -M 32000 \
+-o /lustre/scratch126/gengen/projects/escramble/Data/ONT/240715/FASTQ/dorado_OTX2_14_1_scramble_rep_2.log -J dorado_OTX2_14_1_scramble_rep_2 \
+'dorado basecaller hac --no-trim --emit-fastq \
+/lustre/scratch126/gengen/projects/escramble/Data/ONT/240715/240715_PM_OTX2_14_2/20240715_1401_MN44968_FAX27331_ad69607c/pod5/ \
+> /lustre/scratch126/gengen/projects/escramble/Data/ONT/240715/FASTQ/OTX2_14_1_scramble_rep_2.fastq'
+
+# Read statistics
+bsub -q normal -n 16 -R'select[mem>32000] rusage[mem=32000]' -M 32000 \
+-o /lustre/scratch126/gengen/projects/escramble/Data/ONT/240715/FASTQ/seqkit.stats.log \
+'seqkit stats /lustre/scratch126/gengen/projects/escramble/Data/ONT/240715/FASTQ/OTX2_14_1_scramble_rep_1.fastq > /lustre/scratch126/gengen/projects/escramble/Data/ONT/240715/FASTQ/OTX2_14_1_scramble_rep_1_stats.txt
+seqkit stats /lustre/scratch126/gengen/projects/escramble/Data/ONT/240715/FASTQ/OTX2_14_1_scramble_rep_2.fastq > /lustre/scratch126/gengen/projects/escramble/Data/ONT/240715/FASTQ/OTX2_14_1_scramble_rep_2_stats.txt'
+
+# Rep 1: 4,112,864 reads
+# Rep 2: 3,605,987 reads
+
+################################################
+# 30/07/24 run
+
+# Replicate 1
+bsub -q "gpu-basement" -gpu - -R'select[mem>32000] rusage[mem=32000]' -M 32000 \
+-o /lustre/scratch126/gengen/projects/escramble/Data/ONT/240730/FASTQ/dorado_OTX2_14_1_scramble_rep_1.log -J dorado_OTX2_14_1_scramble_rep_1 \
+'dorado basecaller hac --no-trim --emit-fastq \
+/lustre/scratch126/gengen/projects/escramble/Data/ONT/240730/240730_PM_OTX2_14_1/20240730_1247_MN44968_FAZ53299_5809b5cd/pod5/ \
+> /lustre/scratch126/gengen/projects/escramble/Data/ONT/240730/FASTQ/OTX2_14_1_scramble_rep_1.fastq'
+
+# Replicate 2
+bsub -q "gpu-basement" -gpu - -R'select[mem>32000] rusage[mem=32000]' -M 32000 \
+-o /lustre/scratch126/gengen/projects/escramble/Data/ONT/240730/FASTQ/dorado_OTX2_14_1_scramble_rep_2.log -J dorado_OTX2_14_1_scramble_rep_2 \
+'dorado basecaller hac --no-trim --emit-fastq \
+/lustre/scratch126/gengen/projects/escramble/Data/ONT/240730/240730_PM_OTX2_14_2/20240730_1247_MN40897_FAZ58256_50638a1e/pod5/ \
+> /lustre/scratch126/gengen/projects/escramble/Data/ONT/240730/FASTQ/OTX2_14_1_scramble_rep_2.fastq'
+
+# Read statistics
+bsub -q normal -n 16 -R'select[mem>32000] rusage[mem=32000]' -M 32000 \
+-o /lustre/scratch126/gengen/projects/escramble/Data/ONT/240730/FASTQ/seqkit.stats.log \
+'seqkit stats /lustre/scratch126/gengen/projects/escramble/Data/ONT/240730/FASTQ/OTX2_14_1_scramble_rep_1.fastq > /lustre/scratch126/gengen/projects/escramble/Data/ONT/240730/FASTQ/OTX2_14_1_scramble_rep_1_stats.txt
+seqkit stats /lustre/scratch126/gengen/projects/escramble/Data/ONT/240730/FASTQ/OTX2_14_1_scramble_rep_2.fastq > /lustre/scratch126/gengen/projects/escramble/Data/ONT/240730/FASTQ/OTX2_14_1_scramble_rep_2_stats.txt'
+
+# Rep 1: 4,809,861 reads
+# Rep 2: 4,132,531 reads
+
+################################################
+# 31/07/24 run
+
+# Replicate 1
+bsub -q "gpu-basement" -gpu - -R'select[mem>32000] rusage[mem=32000]' -M 32000 \
+-o /lustre/scratch126/gengen/projects/escramble/Data/ONT/240731/FASTQ/dorado_OTX2_14_1_scramble_rep_1.log -J dorado_OTX2_14_1_scramble_rep_1 \
+'dorado basecaller hac --no-trim --emit-fastq \
+/lustre/scratch126/gengen/projects/escramble/Data/ONT/240731/240730_PM_OTX2_14_1/20240731_1022_MN44968_FAZ53299_431d21e1/pod5/ \
+> /lustre/scratch126/gengen/projects/escramble/Data/ONT/240731/FASTQ/OTX2_14_1_scramble_rep_1.fastq'
+
+# Replicate 2
+bsub -q "gpu-basement" -gpu - -R'select[mem>32000] rusage[mem=32000]' -M 32000 \
+-o /lustre/scratch126/gengen/projects/escramble/Data/ONT/240731/FASTQ/dorado_OTX2_14_1_scramble_rep_2.log -J dorado_OTX2_14_1_scramble_rep_2 \
+'dorado basecaller hac --no-trim --emit-fastq \
+/lustre/scratch126/gengen/projects/escramble/Data/ONT/240731/240730_PM_OTX2_14_2/20240731_1022_MN40897_FAZ58256_75821d5e/pod5/ \
+> /lustre/scratch126/gengen/projects/escramble/Data/ONT/240731/FASTQ/OTX2_14_1_scramble_rep_2.fastq'
+
+# Read statistics
+bsub -q normal -n 16 -R'select[mem>32000] rusage[mem=32000]' -M 32000 \
+-o /lustre/scratch126/gengen/projects/escramble/Data/ONT/240731/FASTQ/seqkit.stats.log \
+'seqkit stats /lustre/scratch126/gengen/projects/escramble/Data/ONT/240731/FASTQ/OTX2_14_1_scramble_rep_1.fastq > /lustre/scratch126/gengen/projects/escramble/Data/ONT/240731/FASTQ/OTX2_14_1_scramble_rep_1_stats.txt
+seqkit stats /lustre/scratch126/gengen/projects/escramble/Data/ONT/240731/FASTQ/OTX2_14_1_scramble_rep_2.fastq > /lustre/scratch126/gengen/projects/escramble/Data/ONT/240731/FASTQ/OTX2_14_1_scramble_rep_2_stats.txt'
+
+# Rep 1: 2,020,384 reads
+# Rep 2: 2,442,818 reads
+
+# Total number of reads
+
+# Rep 1: 10,943,109 reads
+# Rep 2: 10,181,336 reads
+```
+
+Combine sequencing runs
+
+```{bash, eval = F}
+# FARM
+
+# Replicate 1
+
+cat \
+/lustre/scratch126/gengen/projects/escramble/Data/ONT/240715/FASTQ/OTX2_14_1_scramble_rep_1.fastq \
+/lustre/scratch126/gengen/projects/escramble/Data/ONT/240730/FASTQ/OTX2_14_1_scramble_rep_1.fastq \
+/lustre/scratch126/gengen/projects/escramble/Data/ONT/240731/FASTQ/OTX2_14_1_scramble_rep_1.fastq \
+> /lustre/scratch126/gengen/projects/escramble/Data/ONT/240731/FASTQ/OTX2_14_1_scramble_rep_1_combined.fastq
+
+# Replicate 2
+
+cat \
+/lustre/scratch126/gengen/projects/escramble/Data/ONT/240715/FASTQ/OTX2_14_1_scramble_rep_2.fastq \
+/lustre/scratch126/gengen/projects/escramble/Data/ONT/240730/FASTQ/OTX2_14_1_scramble_rep_2.fastq \
+/lustre/scratch126/gengen/projects/escramble/Data/ONT/240731/FASTQ/OTX2_14_1_scramble_rep_2.fastq \
+> /lustre/scratch126/gengen/projects/escramble/Data/ONT/240731/FASTQ/OTX2_14_1_scramble_rep_2_combined.fastq
+```
+
+# Demultiplexing
+
+Sample are then demultiplexed with seqkit.
+WARNING: we use seqkit grep and seqkit amplicon. seqkit amplicon is only available in seqkit v2 and above (not available in Softpack for now). We need to call for a custom installation.
+
+Primers used for PCR amplification:
+- all #1257:          TCTCAACATCAAAGAGCACCCCT / AGGGGTGCTCTTTGATGTTGAGA
+- very dim #1697:     GGTGCTG-AAGAAAGTTGTCGGTGTCTTTGTG-ACCAGCATTGCTTGGAAGTGTT / AACACTTCCAAGCAATGCTGGT-CACAAAGACACCGACAACTTTCTT-CAGCACC
+- dim #1698:          GGTGCTG-TCGATTCCGTTTGTAGTCGTCTGT-ACCAGCATTGCTTGGAAGTGTT / AACACTTCCAAGCAATGCTGGT-ACAGACGACTACAAACGGAATCGA-CAGCACC 
+- bright #1700:        GTGCTG-TTCGGATTCTATCGTGTTTCCCTA-ACCAGCATTGCTTGGAAGTGTT / AACACTTCCAAGCAATGCTGGT-TAGGGAAACACGATAGAATCCGAA-CAGCAC
+- very bright #1721   GGTGCTG-CTTGTCCAGGGTTTGTGTAACCTT-ACCAGCATTGCTTGGAAGTGTT / AACACTTCCAAGCAATGCTGGT-AAGGTTACACAAACCCTGGACAAG-CAGCACC
+
+```{bash, eval = F}
+# FARM
+
+# Load modules
+module load HGI/softpack/groups/escramble/eSCRAMBLE/7
+
+# Replicate 1
+
+# Rep 1 - very dim
+bsub -q normal -n 16 -R'select[mem>32000] rusage[mem=32000]' -M 32000 \
+-o /lustre/scratch126/gengen/projects/escramble/Data/ONT/240731/FASTQ/seqkit.demux.log \
+'/nfs/users/nfs_j/jk24/000_Software/miniconda3/bin/seqkit grep --by-seq --max-mismatch 2 -j 16 --pattern "GGTGCTGAAGAAAGTTGTCGGTGTCTTTGTG" /lustre/scratch126/gengen/projects/escramble/Data/ONT/240731/FASTQ/OTX2_14_1_scramble_rep_1_combined.fastq \
+> /lustre/scratch126/gengen/projects/escramble/Data/ONT/240731/FASTQ/OTX2_14_1_scramble_very_dim_rep_1_temp.fastq
+/nfs/users/nfs_j/jk24/000_Software/miniconda3/bin/seqkit amplicon -I --max-mismatch 4 -j 8 -F "TCTCAACATCAAAGAGCACCCCT" -R "ACCAGCATTGCTTGGAAGTGTT" /lustre/scratch126/gengen/projects/escramble/Data/ONT/240731/FASTQ/OTX2_14_1_scramble_very_dim_rep_1_temp.fastq \
+> /lustre/scratch126/gengen/projects/escramble/Data/ONT/240731/FASTQ/OTX2_14_1_scramble_very_dim_rep_1.fastq'
+
+# Rep 1 - dim
+bsub -q normal -n 16 -R'select[mem>32000] rusage[mem=32000]' -M 32000 \
+-o /lustre/scratch126/gengen/projects/escramble/Data/ONT/240731/FASTQ/seqkit.demux.log \
+'/nfs/users/nfs_j/jk24/000_Software/miniconda3/bin/seqkit grep --by-seq --max-mismatch 2 -j 16 --pattern "GGTGCTGTCGATTCCGTTTGTAGTCGTCTGT" /lustre/scratch126/gengen/projects/escramble/Data/ONT/240731/FASTQ/OTX2_14_1_scramble_rep_1_combined.fastq \
+> /lustre/scratch126/gengen/projects/escramble/Data/ONT/240731/FASTQ/OTX2_14_1_scramble_dim_rep_1_temp.fastq
+/nfs/users/nfs_j/jk24/000_Software/miniconda3/bin/seqkit amplicon -I --max-mismatch 4 -j 8 -F "TCTCAACATCAAAGAGCACCCCT" -R "ACCAGCATTGCTTGGAAGTGTT" /lustre/scratch126/gengen/projects/escramble/Data/ONT/240731/FASTQ/OTX2_14_1_scramble_dim_rep_1_temp.fastq \
+> /lustre/scratch126/gengen/projects/escramble/Data/ONT/240731/FASTQ/OTX2_14_1_scramble_dim_rep_1.fastq'
+
+# Rep 1 - bright
+bsub -q normal -n 16 -R'select[mem>32000] rusage[mem=32000]' -M 32000 \
+-o /lustre/scratch126/gengen/projects/escramble/Data/ONT/240731/FASTQ/seqkit.demux.log \
+'/nfs/users/nfs_j/jk24/000_Software/miniconda3/bin/seqkit grep --by-seq --max-mismatch 2 -j 16 --pattern "GTGCTGTTCGGATTCTATCGTGTTTCCCTA" /lustre/scratch126/gengen/projects/escramble/Data/ONT/240731/FASTQ/OTX2_14_1_scramble_rep_1_combined.fastq \
+> /lustre/scratch126/gengen/projects/escramble/Data/ONT/240731/FASTQ/OTX2_14_1_scramble_bright_rep_1_temp.fastq
+/nfs/users/nfs_j/jk24/000_Software/miniconda3/bin/seqkit amplicon -I --max-mismatch 4 -j 8 -F "TCTCAACATCAAAGAGCACCCCT" -R "ACCAGCATTGCTTGGAAGTGTT" /lustre/scratch126/gengen/projects/escramble/Data/ONT/240731/FASTQ/OTX2_14_1_scramble_bright_rep_1_temp.fastq \
+> /lustre/scratch126/gengen/projects/escramble/Data/ONT/240731/FASTQ/OTX2_14_1_scramble_bright_rep_1.fastq'
+
+# Rep 1 - very bright
+bsub -q normal -n 16 -R'select[mem>32000] rusage[mem=32000]' -M 32000 \
+-o /lustre/scratch126/gengen/projects/escramble/Data/ONT/240731/FASTQ/seqkit.demux.log \
+'/nfs/users/nfs_j/jk24/000_Software/miniconda3/bin/seqkit grep --by-seq --max-mismatch 2 -j 16 --pattern "GGTGCTGCTTGTCCAGGGTTTGTGTAACCTT" /lustre/scratch126/gengen/projects/escramble/Data/ONT/240731/FASTQ/OTX2_14_1_scramble_rep_1_combined.fastq \
+> /lustre/scratch126/gengen/projects/escramble/Data/ONT/240731/FASTQ/OTX2_14_1_scramble_very_bright_rep_1_temp.fastq
+/nfs/users/nfs_j/jk24/000_Software/miniconda3/bin/seqkit amplicon -I --max-mismatch 4 -j 8 -F "TCTCAACATCAAAGAGCACCCCT" -R "ACCAGCATTGCTTGGAAGTGTT" /lustre/scratch126/gengen/projects/escramble/Data/ONT/240731/FASTQ/OTX2_14_1_scramble_very_bright_rep_1_temp.fastq \
+> /lustre/scratch126/gengen/projects/escramble/Data/ONT/240731/FASTQ/OTX2_14_1_scramble_very_bright_rep_1.fastq'
+
+# Replicate 2
+
+# Rep 2 - very dim
+bsub -q normal -n 16 -R'select[mem>32000] rusage[mem=32000]' -M 32000 \
+-o /lustre/scratch126/gengen/projects/escramble/Data/ONT/240731/FASTQ/seqkit.demux.log \
+'/nfs/users/nfs_j/jk24/000_Software/miniconda3/bin/seqkit grep --by-seq --max-mismatch 2 -j 16 --pattern "GGTGCTGAAGAAAGTTGTCGGTGTCTTTGTG" /lustre/scratch126/gengen/projects/escramble/Data/ONT/240731/FASTQ/OTX2_14_1_scramble_rep_2_combined.fastq \
+> /lustre/scratch126/gengen/projects/escramble/Data/ONT/240731/FASTQ/OTX2_14_1_scramble_very_dim_rep_2_temp.fastq
+/nfs/users/nfs_j/jk24/000_Software/miniconda3/bin/seqkit amplicon -I --max-mismatch 4 -j 8 -F "TCTCAACATCAAAGAGCACCCCT" -R "ACCAGCATTGCTTGGAAGTGTT" /lustre/scratch126/gengen/projects/escramble/Data/ONT/240731/FASTQ/OTX2_14_1_scramble_very_dim_rep_2_temp.fastq \
+> /lustre/scratch126/gengen/projects/escramble/Data/ONT/240731/FASTQ/OTX2_14_1_scramble_very_dim_rep_2.fastq'
+
+# Rep 2 - dim
+bsub -q normal -n 16 -R'select[mem>32000] rusage[mem=32000]' -M 32000 \
+-o /lustre/scratch126/gengen/projects/escramble/Data/ONT/240731/FASTQ/seqkit.demux.log \
+'/nfs/users/nfs_j/jk24/000_Software/miniconda3/bin/seqkit grep --by-seq --max-mismatch 2 -j 16 --pattern "GGTGCTGTCGATTCCGTTTGTAGTCGTCTGT" /lustre/scratch126/gengen/projects/escramble/Data/ONT/240731/FASTQ/OTX2_14_1_scramble_rep_2_combined.fastq \
+> /lustre/scratch126/gengen/projects/escramble/Data/ONT/240731/FASTQ/OTX2_14_1_scramble_dim_rep_2_temp.fastq
+/nfs/users/nfs_j/jk24/000_Software/miniconda3/bin/seqkit amplicon -I --max-mismatch 4 -j 8 -F "TCTCAACATCAAAGAGCACCCCT" -R "ACCAGCATTGCTTGGAAGTGTT" /lustre/scratch126/gengen/projects/escramble/Data/ONT/240731/FASTQ/OTX2_14_1_scramble_dim_rep_2_temp.fastq \
+> /lustre/scratch126/gengen/projects/escramble/Data/ONT/240731/FASTQ/OTX2_14_1_scramble_dim_rep_2.fastq'
+
+# Rep 2 - bright
+bsub -q normal -n 16 -R'select[mem>32000] rusage[mem=32000]' -M 32000 \
+-o /lustre/scratch126/gengen/projects/escramble/Data/ONT/240731/FASTQ/seqkit.demux.log \
+'/nfs/users/nfs_j/jk24/000_Software/miniconda3/bin/seqkit grep --by-seq --max-mismatch 2 -j 16 --pattern "GTGCTGTTCGGATTCTATCGTGTTTCCCTA" /lustre/scratch126/gengen/projects/escramble/Data/ONT/240731/FASTQ/OTX2_14_1_scramble_rep_2_combined.fastq \
+> /lustre/scratch126/gengen/projects/escramble/Data/ONT/240731/FASTQ/OTX2_14_1_scramble_bright_rep_2_temp.fastq
+/nfs/users/nfs_j/jk24/000_Software/miniconda3/bin/seqkit amplicon -I --max-mismatch 4 -j 8 -F "TCTCAACATCAAAGAGCACCCCT" -R "ACCAGCATTGCTTGGAAGTGTT" /lustre/scratch126/gengen/projects/escramble/Data/ONT/240731/FASTQ/OTX2_14_1_scramble_bright_rep_2_temp.fastq \
+> /lustre/scratch126/gengen/projects/escramble/Data/ONT/240731/FASTQ/OTX2_14_1_scramble_bright_rep_2.fastq'
+
+# Rep 2 - very bright
+bsub -q normal -n 16 -R'select[mem>32000] rusage[mem=32000]' -M 32000 \
+-o /lustre/scratch126/gengen/projects/escramble/Data/ONT/240731/FASTQ/seqkit.demux.log \
+'/nfs/users/nfs_j/jk24/000_Software/miniconda3/bin/seqkit grep --by-seq --max-mismatch 2 -j 16 --pattern "GGTGCTGCTTGTCCAGGGTTTGTGTAACCTT" /lustre/scratch126/gengen/projects/escramble/Data/ONT/240731/FASTQ/OTX2_14_1_scramble_rep_2_combined.fastq \
+> /lustre/scratch126/gengen/projects/escramble/Data/ONT/240731/FASTQ/OTX2_14_1_scramble_very_bright_rep_2_temp.fastq
+/nfs/users/nfs_j/jk24/000_Software/miniconda3/bin/seqkit amplicon -I --max-mismatch 4 -j 8 -F "TCTCAACATCAAAGAGCACCCCT" -R "ACCAGCATTGCTTGGAAGTGTT" /lustre/scratch126/gengen/projects/escramble/Data/ONT/240731/FASTQ/OTX2_14_1_scramble_very_bright_rep_2_temp.fastq \
+> /lustre/scratch126/gengen/projects/escramble/Data/ONT/240731/FASTQ/OTX2_14_1_scramble_very_bright_rep_2.fastq'
+
+# Remove temporary files
+rm /lustre/scratch126/gengen/projects/escramble/Data/ONT/240731/FASTQ/OTX2_14_1_scramble_very_dim_rep_1_temp.fastq
+rm /lustre/scratch126/gengen/projects/escramble/Data/ONT/240731/FASTQ/OTX2_14_1_scramble_dim_rep_1_temp.fastq
+rm /lustre/scratch126/gengen/projects/escramble/Data/ONT/240731/FASTQ/OTX2_14_1_scramble_bright_rep_1_temp.fastq
+rm /lustre/scratch126/gengen/projects/escramble/Data/ONT/240731/FASTQ/OTX2_14_1_scramble_very_bright_rep_1_temp.fastq
+rm /lustre/scratch126/gengen/projects/escramble/Data/ONT/240731/FASTQ/OTX2_14_1_scramble_very_dim_rep_2_temp.fastq
+rm /lustre/scratch126/gengen/projects/escramble/Data/ONT/240731/FASTQ/OTX2_14_1_scramble_dim_rep_2_temp.fastq
+rm /lustre/scratch126/gengen/projects/escramble/Data/ONT/240731/FASTQ/OTX2_14_1_scramble_bright_rep_2_temp.fastq
+rm /lustre/scratch126/gengen/projects/escramble/Data/ONT/240731/FASTQ/OTX2_14_1_scramble_very_bright_rep_2_temp.fastq
+
+# Rename for submission
+
+cp /lustre/scratch126/gengen/projects/escramble/Data/ONT/240731/FASTQ/OTX2_14_1_scramble_very_dim_rep_1.fastq \
+/lustre/scratch126/gengen/projects/escramble/Notebook/Summary/OTX2/FASTQ/loxPsym.7.pool.PCR.dark.rep.1.fastq
+cp /lustre/scratch126/gengen/projects/escramble/Data/ONT/240731/FASTQ/OTX2_14_1_scramble_dim_rep_1.fastq \
+/lustre/scratch126/gengen/projects/escramble/Notebook/Summary/OTX2/FASTQ/loxPsym.7.pool.PCR.dim.rep.1.fastq
+cp /lustre/scratch126/gengen/projects/escramble/Data/ONT/240731/FASTQ/OTX2_14_1_scramble_bright_rep_1.fastq \
+/lustre/scratch126/gengen/projects/escramble/Notebook/Summary/OTX2/FASTQ/loxPsym.7.pool.PCR.medium.rep.1.fastq
+cp /lustre/scratch126/gengen/projects/escramble/Data/ONT/240731/FASTQ/OTX2_14_1_scramble_very_bright_rep_1.fastq \
+/lustre/scratch126/gengen/projects/escramble/Notebook/Summary/OTX2/FASTQ/loxPsym.7.pool.PCR.bright.rep.1.fastq
+
+cp /lustre/scratch126/gengen/projects/escramble/Data/ONT/240731/FASTQ/OTX2_14_1_scramble_very_dim_rep_2.fastq \
+/lustre/scratch126/gengen/projects/escramble/Notebook/Summary/OTX2/FASTQ/loxPsym.7.pool.PCR.dark.rep.2.fastq
+cp /lustre/scratch126/gengen/projects/escramble/Data/ONT/240731/FASTQ/OTX2_14_1_scramble_dim_rep_2.fastq \
+/lustre/scratch126/gengen/projects/escramble/Notebook/Summary/OTX2/FASTQ/loxPsym.7.pool.PCR.dim.rep.2.fastq
+cp /lustre/scratch126/gengen/projects/escramble/Data/ONT/240731/FASTQ/OTX2_14_1_scramble_bright_rep_2.fastq \
+/lustre/scratch126/gengen/projects/escramble/Notebook/Summary/OTX2/FASTQ/loxPsym.7.pool.PCR.medium.rep.2.fastq
+cp /lustre/scratch126/gengen/projects/escramble/Data/ONT/240731/FASTQ/OTX2_14_1_scramble_very_bright_rep_2.fastq \
+/lustre/scratch126/gengen/projects/escramble/Notebook/Summary/OTX2/FASTQ/loxPsym.7.pool.PCR.bright.rep.2.fastq
+```
+
+# Read length
+
+Extract read length
+
+```{bash, eval = F}
+
+bsub -q normal -n 16 -R'select[mem>32000] rusage[mem=32000]' -M 32000 \
+-o /lustre/scratch126/gengen/projects/escramble/Data/ONT/240731/FASTQ/seqkit.demux.log \
+'seqkit fx2tab -nl /lustre/scratch126/gengen/projects/escramble/Data/ONT/240731/FASTQ/OTX2_14_1_scramble_very_dim_rep_1.fastq > \
+/lustre/scratch126/gengen/projects/escramble/Data/ONT/240731/FASTQ/OTX2_14_1_scramble_very_dim_rep_1_read_length.txt'
+
+bsub -q normal -n 16 -R'select[mem>32000] rusage[mem=32000]' -M 32000 \
+-o /lustre/scratch126/gengen/projects/escramble/Data/ONT/240731/FASTQ/seqkit.demux.log \
+'seqkit fx2tab -nl /lustre/scratch126/gengen/projects/escramble/Data/ONT/240731/FASTQ/OTX2_14_1_scramble_dim_rep_1.fastq > \
+/lustre/scratch126/gengen/projects/escramble/Data/ONT/240731/FASTQ/OTX2_14_1_scramble_dim_rep_1_read_length.txt'
+
+bsub -q normal -n 16 -R'select[mem>32000] rusage[mem=32000]' -M 32000 \
+-o /lustre/scratch126/gengen/projects/escramble/Data/ONT/240731/FASTQ/seqkit.demux.log \
+'seqkit fx2tab -nl /lustre/scratch126/gengen/projects/escramble/Data/ONT/240731/FASTQ/OTX2_14_1_scramble_bright_rep_1.fastq > \
+/lustre/scratch126/gengen/projects/escramble/Data/ONT/240731/FASTQ/OTX2_14_1_scramble_bright_rep_1_read_length.txt'
+
+bsub -q normal -n 16 -R'select[mem>32000] rusage[mem=32000]' -M 32000 \
+-o /lustre/scratch126/gengen/projects/escramble/Data/ONT/240731/FASTQ/seqkit.demux.log \
+'seqkit fx2tab -nl /lustre/scratch126/gengen/projects/escramble/Data/ONT/240731/FASTQ/OTX2_14_1_scramble_very_bright_rep_1.fastq > \
+/lustre/scratch126/gengen/projects/escramble/Data/ONT/240731/FASTQ/OTX2_14_1_scramble_very_bright_rep_1_read_length.txt'
+
+bsub -q normal -n 16 -R'select[mem>32000] rusage[mem=32000]' -M 32000 \
+-o /lustre/scratch126/gengen/projects/escramble/Data/ONT/240731/FASTQ/seqkit.demux.log \
+'seqkit fx2tab -nl /lustre/scratch126/gengen/projects/escramble/Data/ONT/240731/FASTQ/OTX2_14_1_scramble_very_dim_rep_2.fastq > \
+/lustre/scratch126/gengen/projects/escramble/Data/ONT/240731/FASTQ/OTX2_14_1_scramble_very_dim_rep_2_read_length.txt'
+
+bsub -q normal -n 16 -R'select[mem>32000] rusage[mem=32000]' -M 32000 \
+-o /lustre/scratch126/gengen/projects/escramble/Data/ONT/240731/FASTQ/seqkit.demux.log \
+'seqkit fx2tab -nl /lustre/scratch126/gengen/projects/escramble/Data/ONT/240731/FASTQ/OTX2_14_1_scramble_dim_rep_2.fastq > \
+/lustre/scratch126/gengen/projects/escramble/Data/ONT/240731/FASTQ/OTX2_14_1_scramble_dim_rep_2_read_length.txt'
+
+bsub -q normal -n 16 -R'select[mem>32000] rusage[mem=32000]' -M 32000 \
+-o /lustre/scratch126/gengen/projects/escramble/Data/ONT/240731/FASTQ/seqkit.demux.log \
+'seqkit fx2tab -nl /lustre/scratch126/gengen/projects/escramble/Data/ONT/240731/FASTQ/OTX2_14_1_scramble_bright_rep_2.fastq > \
+/lustre/scratch126/gengen/projects/escramble/Data/ONT/240731/FASTQ/OTX2_14_1_scramble_bright_rep_2_read_length.txt'
+
+bsub -q normal -n 16 -R'select[mem>32000] rusage[mem=32000]' -M 32000 \
+-o /lustre/scratch126/gengen/projects/escramble/Data/ONT/240731/FASTQ/seqkit.demux.log \
+'seqkit fx2tab -nl /lustre/scratch126/gengen/projects/escramble/Data/ONT/240731/FASTQ/OTX2_14_1_scramble_very_bright_rep_2.fastq > \
+/lustre/scratch126/gengen/projects/escramble/Data/ONT/240731/FASTQ/OTX2_14_1_scramble_very_bright_rep_2_read_length.txt'
+```
+
+```{r, eval = F}
+
+library(dplyr)
+
+setwd("/lustre/scratch126/gengen/projects/escramble")
+
+# Load results and format table
+
+read.length.files <- list.files("/lustre/scratch126/gengen/projects/escramble/Data/ONT/240731/FASTQ/")
+read.length.files <- read.length.files[grepl("read_length.txt", read.length.files)]
+read.length.path <- paste0("/lustre/scratch126/gengen/projects/escramble/Data/ONT/240731/FASTQ/", read.length.files)
+sample.name <- gsub("OTX2_14_1_scramble_", "", read.length.files)
+sample.name <- gsub("_rep_1_read_length.txt", "", sample.name)
+sample.name <- gsub("_rep_2_read_length.txt", "", sample.name)
+sample.rep <- rep(c(1,2), 4)
+
+OTX2.read.length.df <- tibble()
+for (i in 1:length(read.length.files)) {
+  read.length.path.i <- read.length.path[i]
+  sample.name.i <- sample.name[i]
+  sample.rep.i <- sample.rep[i]
+  read.length.df.i <- read.table(read.length.path.i) %>% select(read.id = V1, read.length = V6) %>% mutate(sample.id = sample.name.i, replicate = sample.rep.i)
+  OTX2.read.length.df <- rbind(OTX2.read.length.df, read.length.df.i)
+}
+
+# Save table
+saveRDS(OTX2.read.length.df, "/lustre/scratch126/gengen/projects/escramble/Notebook/002_OTX2_superenhancer_scramble/rds/OTX2.read.length.df.rds")
+```
+
+Plot read length distribution
+
+```{r message=FALSE, warning=FALSE, eval = T}
+library(dplyr)
+library(ggplot2)
+library(ggpubr)
+library(tidyr)
+
+setwd("/lustre/scratch126/gengen/projects/escramble")
+
+# Load data
+
+OTX2.read.length.df <- readRDS("/lustre/scratch126/gengen/projects/escramble/Notebook/002_OTX2_superenhancer_scramble/rds/OTX2.read.length.df.rds")
+
+# Clean and save as a table
+
+OTX2.read.summary.df <- OTX2.read.length.df %>% dplyr::select(read.id, gate = sample.id, replicate) %>% distinct()
+write.table(OTX2.read.summary.df, "/lustre/scratch126/gengen/projects/escramble/Notebook/002_OTX2_superenhancer_scramble/rds/OTX2_loxP7_read_summary.tsv", sep = "\t", col.names = T, row.names = F, quote = F)
+
+# Plot
+
+OTX2.read.length.very.dim.plot <- OTX2.read.length.df %>% filter(read.length >= 400 & read.length <= 25000) %>% 
+  filter(sample.id == "very_dim") %>% 
+  ggplot(aes(x=read.length)) +
+  geom_histogram(binwidth=200, fill="#3E54A4") + ggtitle("very dim") + xlab("Read length (bp)") + xlim(400, 25000) + ylim(0,65000) +
+  theme_bw() + theme(aspect.ratio=0.4, panel.grid.major = element_blank())
+OTX2.read.length.very.dim.plot
+
+OTX2.read.length.dim.plot <- OTX2.read.length.df %>% filter(read.length >= 400 & read.length <= 25000) %>% 
+  filter(sample.id == "dim") %>% 
+  ggplot(aes(x=read.length)) +
+  geom_histogram(binwidth=200, fill="#3988C2") + ggtitle("dim") + xlab("Read length (bp)") + xlim(400, 25000) + ylim(0,60000) +
+  theme_bw() + theme(aspect.ratio=0.4, panel.grid.major = element_blank())
+OTX2.read.length.dim.plot
+
+OTX2.read.length.bright.plot <- OTX2.read.length.df %>% filter(read.length >= 400 & read.length <= 25000) %>% 
+  filter(sample.id == "bright") %>% 
+  ggplot(aes(x=read.length)) +
+  geom_histogram(binwidth=200, fill="#E36826") + ggtitle("bright") + xlab("Read length (bp)") + xlim(400, 25000) + ylim(0,40000) +
+  theme_bw() + theme(aspect.ratio=0.4, panel.grid.major = element_blank())
+OTX2.read.length.bright.plot
+
+OTX2.read.length.very.bright.plot <- OTX2.read.length.df %>% filter(read.length >= 400 & read.length <= 25000) %>% 
+  filter(sample.id == "very_bright") %>% 
+  ggplot(aes(x=read.length)) +
+  geom_histogram(binwidth=200, fill="#EF4136") + ggtitle("very bright") + xlab("Read length (bp)") + xlim(400, 25000) + ylim(0,45000) +
+  theme_bw() + theme(aspect.ratio=0.4, panel.grid.major = element_blank())
+OTX2.read.length.very.bright.plot
+
+pdf("./Notebook/Rplots/OTX2/OTX2_scramble_read_length_distribution.pdf", width=4, height=8, useDingbats=FALSE)
+ggarrange(OTX2.read.length.very.dim.plot, OTX2.read.length.dim.plot, OTX2.read.length.bright.plot, OTX2.read.length.very.bright.plot, nrow = 4)
+dev.off()
+
+# Transform read count into nucleotide count (res = 200 nt)
+
+OTX2.nuc.count.df <- OTX2.read.length.df %>% mutate(ints = (as.numeric(cut(read.length, seq(0, 25000, 50), include.lowest = TRUE, right = FALSE))*50)+50) %>% 
+  drop_na() %>% group_by(sample.id, ints) %>% summarise(ints = mean(ints, na.rm = T), read.count = dplyr::n()) %>% mutate(nuc.count = read.count*ints)
+
+# Plot (log10 scale)
+
+OTX2.nuc.count.very.dim.plot <- OTX2.nuc.count.df %>%
+  filter(sample.id == "very_dim") %>% 
+  ggplot(aes(x=ints, y=log10(nuc.count))) +
+  geom_ribbon(aes(ymin = 4.3, ymax = log10(nuc.count)), fill = "#3E54A4", alpha=0.3, position = "identity") +
+  geom_line(linewidth = 0.25) + ylim(4.3,9.1) + xlab("Read length (bp)") + ylab("Nucleotide count (log10)") + ggtitle("very dim") +
+  theme_bw() + theme(aspect.ratio=2.5, panel.grid.major = element_blank()) + coord_flip()
+OTX2.nuc.count.very.dim.plot
+
+OTX2.nuc.count.dim.plot <- OTX2.nuc.count.df %>%
+  filter(sample.id == "dim") %>% 
+  ggplot(aes(x=ints, y=log10(nuc.count))) +
+  geom_ribbon(aes(ymin = 4.3, ymax = log10(nuc.count)), fill = "#3988C2", alpha=0.3, position = "identity") +
+  geom_line(linewidth = 0.25) + ylim(4.3,9.1) + xlab("Read length (bp)") + ylab("Nucleotide count (log10)") + ggtitle("dim") +
+  theme_bw() + theme(aspect.ratio=2.5, panel.grid.major = element_blank()) + coord_flip()
+OTX2.nuc.count.dim.plot
+
+OTX2.nuc.count.bright.plot <- OTX2.nuc.count.df %>%
+  filter(sample.id == "bright") %>% 
+  ggplot(aes(x=ints, y=log10(nuc.count))) +
+  geom_ribbon(aes(ymin = 4.3, ymax = log10(nuc.count)), fill = "#E36826", alpha=0.3, position = "identity") +
+  geom_line(linewidth = 0.25) + ylim(4.3,9.1) + xlab("Read length (bp)") + ylab("Nucleotide count (log10)") + ggtitle("bright") +
+  theme_bw() + theme(aspect.ratio=2.5, panel.grid.major = element_blank()) + coord_flip()
+OTX2.nuc.count.bright.plot
+
+OTX2.nuc.count.very.bright.plot <- OTX2.nuc.count.df %>%
+  filter(sample.id == "very_bright") %>% 
+  ggplot(aes(x=ints, y=log10(nuc.count))) +
+  geom_ribbon(aes(ymin = 4.3, ymax = log10(nuc.count)), fill = "#EF4136", alpha=0.3, position = "identity") +
+  geom_line(linewidth = 0.25) + ylim(4.3,9.1) + xlab("Read length (bp)") + ylab("Nucleotide count (log10)") + ggtitle("very bright") +
+  theme_bw() + theme(aspect.ratio=2.5, panel.grid.major = element_blank()) + coord_flip()
+OTX2.nuc.count.very.bright.plot
+
+pdf("./Notebook/Rplots/OTX2/OTX2_scramble_read_length_distribution_nuc_count.pdf", width=8, height=4, useDingbats=FALSE)
+ggarrange(OTX2.nuc.count.very.dim.plot, OTX2.nuc.count.dim.plot, OTX2.nuc.count.bright.plot, OTX2.nuc.count.very.bright.plot, nrow = 1, ncol = 4)
+dev.off()
+
+# Plot (linear scale)
+
+OTX2.nuc.count.very.dim.linear.plot <- OTX2.nuc.count.df %>%
+  filter(sample.id == "very_dim") %>% 
+  ggplot(aes(x=ints, y=nuc.count/10e6)) +
+  geom_ribbon(aes(ymin = 0, ymax = nuc.count/10e6), fill = "#3E54A4", alpha=0.3, position = "identity") +
+  geom_line(linewidth = 0.25) + xlim(0,25000) + 
+  xlab("Read length (bp)") + ylab("Nucleotide count (x 1e6)") + ggtitle("very dim") +
+  theme_bw() + theme(aspect.ratio=2.5, panel.grid.major = element_blank()) + coord_flip()
+OTX2.nuc.count.very.dim.linear.plot
+
+OTX2.nuc.count.dim.linear.plot <- OTX2.nuc.count.df %>%
+  filter(sample.id == "dim") %>% 
+  ggplot(aes(x=ints, y=nuc.count/10e6)) +
+  geom_ribbon(aes(ymin = 0, ymax = nuc.count/10e6), fill = "#3988C2", alpha=0.3, position = "identity") +
+  geom_line(linewidth = 0.25) + xlim(0,25000) + 
+  xlab("Read length (bp)") + ylab("Nucleotide count (x 1e6)") + ggtitle("dim") +
+  theme_bw() + theme(aspect.ratio=2.5, panel.grid.major = element_blank()) + coord_flip()
+OTX2.nuc.count.dim.linear.plot
+
+OTX2.nuc.count.bright.linear.plot <- OTX2.nuc.count.df %>%
+  filter(sample.id == "bright") %>% 
+  ggplot(aes(x=ints, y=nuc.count/10e6)) +
+  geom_ribbon(aes(ymin = 0, ymax = nuc.count/10e6), fill = "#E36826", alpha=0.3, position = "identity") +
+  geom_line(linewidth = 0.25) + xlim(0,25000) + 
+  xlab("Read length (bp)") + ylab("Nucleotide count (x 1e6)") + ggtitle("bright") +
+  theme_bw() + theme(aspect.ratio=2.5, panel.grid.major = element_blank()) + coord_flip()
+OTX2.nuc.count.bright.linear.plot
+
+OTX2.nuc.count.very.bright.linear.plot <- OTX2.nuc.count.df %>%
+  filter(sample.id == "very_bright") %>% 
+  ggplot(aes(x=ints, y=nuc.count/10e6)) +
+  geom_ribbon(aes(ymin = 0, ymax = nuc.count/10e6), fill = "#EF4136", alpha=0.3, position = "identity") +
+  geom_line(linewidth = 0.25) + xlim(0,25000) + 
+  xlab("Read length (bp)") + ylab("Nucleotide count (x 1e6)") + ggtitle("very bright") +
+  theme_bw() + theme(aspect.ratio=2.5, panel.grid.major = element_blank()) + coord_flip()
+OTX2.nuc.count.very.bright.linear.plot
+
+pdf("./Notebook/Rplots/OTX2/OTX2_scramble_read_length_distribution_nuc_count_linear.pdf", width=8, height=4, useDingbats=FALSE)
+ggarrange(OTX2.nuc.count.very.dim.linear.plot, OTX2.nuc.count.dim.linear.plot, OTX2.nuc.count.bright.linear.plot, OTX2.nuc.count.very.bright.linear.plot, nrow = 1, ncol = 4)
+dev.off()
+```
+
+# Read coverages
+
+The considered architectures were identified and validated by Anant Maheshwari as part of the development of a custom SV caller
+
+This approach identifies 134 architectures
+
+This chunk reports the code used to generate coverage plots
+
+Aggregate data by binning architectures with only deletions and the ones containing inversions
+
+```{r, eval = F}
+# R
+
+# Load function to format bw files
+source("./Scripts/bigwig_to_table.R")
+
+# Define region to plot
+chromosome <- "chr14"
+interval_start <- 56884500
+interval_end <- 56907900
+
+################################################
+# Deletion architectures
+
+# List files
+
+del.cov.files <- list.files("/lustre/scratch126/gengen/projects/escramble/Data/AN_data/134_architectures/DEL/")
+del.bw.files <- del.cov.files[grepl(".bw", del.cov.files)]
+# 44 architectures
+del.bw.path <- paste0("/lustre/scratch126/gengen/projects/escramble/Data/AN_data/134_architectures/DEL/", del.bw.files)
+
+# Format deletion architectures
+
+del.bw.df <- tibble()
+for (i in 1:length(del.bw.path)) {
+  sample.i <- gsub(".bw", "", del.bw.files[i])
+  bw.i <- bigwig_to_table(del.bw.path[i], chromosome, interval_start, interval_end, 100) %>% mutate(genotype = sample.i)
+  del.bw.df <- rbind(del.bw.df, bw.i)
+}
+saveRDS(del.bw.df, "./007_OTX2_loxP7_architectures_analysis/rds/del.bw.df.rds")
+
+################################################
+# Inversion architectures
+
+# List files
+
+inv.cov.files <- list.files("/lustre/scratch126/gengen/projects/escramble/Data/AN_data/134_architectures/INV/")
+inv.fwd.bw.files <- inv.cov.files[grepl(".fwd.bw", inv.cov.files)]
+inv.rev.bw.files <- inv.cov.files[grepl(".rev.bw", inv.cov.files)]
+inv.bw.files <- gsub(".fwd.bw", "", inv.fwd.bw.files)
+# 90 architectures
+inv.fwd.bw.path <- paste0("/lustre/scratch126/gengen/projects/escramble/Data/AN_data/134_architectures/INV/", inv.fwd.bw.files)
+inv.rev.bw.path <- paste0("/lustre/scratch126/gengen/projects/escramble/Data/AN_data/134_architectures/INV/", inv.rev.bw.files)
+
+# Format inversion architectures
+
+inv.bw.df <- tibble()
+for (i in 1:length(inv.bw.files)) {
+  sample.i <- inv.bw.files[i]
+  bw.fwd.i <- bigwig_to_table(inv.fwd.bw.path[i], chromosome, interval_start, interval_end, 100) %>% mutate(strand = "fwd", genotype = sample.i)
+  bw.rev.i <- bigwig_to_table(inv.rev.bw.path[i], chromosome, interval_start, interval_end, 100) %>% mutate(score = -score, strand = "rev", genotype = sample.i)
+  inv.bw.i <- rbind(bw.fwd.i, bw.rev.i)
+  inv.bw.df <- rbind(inv.bw.df, inv.bw.i)
+}
+saveRDS(inv.bw.df, "./007_OTX2_loxP7_architectures_analysis/rds/inv.bw.df.rds")
+```
+
+Plot
+
+```{r message=FALSE, warning=FALSE, eval = T}
+
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(wesanderson)
+
+# Define region to plot
+chromosome <- "chr14"
+interval_start <- 56884500
+interval_end <- 56907900
+
+################################################
+# Deletion architectures
+
+del.bw.df <- readRDS("./007_OTX2_loxP7_architectures_analysis/rds/del.bw.df.rds")
+
+# The 44 architectures are plotted by batch of 24
+
+del.bw.genotype <- unique(del.bw.df$genotype)
+del.bw.part1.df <- del.bw.df %>% filter(genotype %in% del.bw.genotype[1:24])
+del.bw.part2.df <- del.bw.df %>% filter(genotype %in% del.bw.genotype[25:44])
+
+# Define palette
+
+del.bw.palette <- wes_palette("Zissou1", length(unique(del.bw.df$genotype)), type = "continuous")
+del.bw.palette.part1 <- del.bw.palette[1:24]
+del.bw.palette.part2 <- del.bw.palette[25:44]
+
+del.bw.part1.plot <- del.bw.part1.df %>% ggplot(aes(x = start/1e6, y = score, group=1, fill = genotype)) +
+  geom_area() +
+  geom_line(col = "black", linewidth = 0.25) +
+  ylab("Read count") + xlab("Coordinate [Mb]") +
+  scale_fill_manual(values=c(del.bw.palette.part1)) +
+  xlim(interval_start/1e6, interval_end/1e6) +
+    geom_vline(xintercept=56884634/1e6, linetype="dashed") +
+    geom_vline(xintercept=56893129/1e6, linetype="dashed") +
+    geom_vline(xintercept=56898376/1e6, linetype="dashed") +
+    geom_vline(xintercept=56901292/1e6, linetype="dashed") +
+    geom_vline(xintercept=56903183/1e6, linetype="dashed") +
+    geom_vline(xintercept=56904792/1e6, linetype="dashed") +
+    geom_vline(xintercept=56907608/1e6, linetype="dashed") +
+  facet_wrap(~ genotype, scales = "free", ncol = 3) +
+  theme_bw() + theme(aspect.ratio=0.25, panel.grid.minor = element_blank(), strip.background = element_blank(), legend.position="none")
+del.bw.part1.plot
+
+pdf("./Rplots/OTX2/OTX2.loxP7.del.coverage.part.1.pdf", width=10, height=10, useDingbats=FALSE)
+del.bw.part1.plot
+dev.off()
+
+del.bw.part2.plot <- del.bw.part2.df %>% ggplot(aes(x = start/1e6, y = score, group=1, fill = genotype)) +
+  geom_area() +
+  geom_line(col = "black", linewidth = 0.25) +
+  ylab("Read count") + xlab("Coordinate [Mb]") +
+  scale_fill_manual(values=c(del.bw.palette.part2[-20], "#D1D3D4")) +
+  xlim(interval_start/1e6, interval_end/1e6) +
+    geom_vline(xintercept=56884634/1e6, linetype="dashed") +
+    geom_vline(xintercept=56893129/1e6, linetype="dashed") +
+    geom_vline(xintercept=56898376/1e6, linetype="dashed") +
+    geom_vline(xintercept=56901292/1e6, linetype="dashed") +
+    geom_vline(xintercept=56903183/1e6, linetype="dashed") +
+    geom_vline(xintercept=56904792/1e6, linetype="dashed") +
+    geom_vline(xintercept=56907608/1e6, linetype="dashed") +
+  facet_wrap(~ genotype, scales = "free", ncol = 3) +
+  theme_bw() + theme(aspect.ratio=0.25, panel.grid.minor = element_blank(), strip.background = element_blank(), legend.position="none")
+del.bw.part2.plot
+
+pdf("./Rplots/OTX2/OTX2.loxP7.del.coverage.part.2.pdf", width=10, height=10, useDingbats=FALSE)
+del.bw.part2.plot
+dev.off()
+
+################################################
+# Inversion architectures
+
+inv.bw.df <- readRDS("./007_OTX2_loxP7_architectures_analysis/rds/inv.bw.df.rds")
+
+# The 90 architectures are plotted by batch of 24
+
+inv.bw.genotype <- unique(inv.bw.df$genotype)
+inv.bw.part1.df <- inv.bw.df %>% filter(genotype %in% inv.bw.genotype[1:24])
+inv.bw.part2.df <- inv.bw.df %>% filter(genotype %in% inv.bw.genotype[25:48])
+inv.bw.part3.df <- inv.bw.df %>% filter(genotype %in% inv.bw.genotype[49:72])
+inv.bw.part4.df <- inv.bw.df %>% filter(genotype %in% inv.bw.genotype[73:90])
+
+# Define palette
+
+inv.bw.palette <- wes_palette("Zissou1", length(unique(inv.bw.df$genotype)), type = "continuous")
+inv.bw.palette.part1 <- inv.bw.palette[1:24]
+inv.bw.palette.part2 <- inv.bw.palette[25:48]
+inv.bw.palette.part3 <- inv.bw.palette[49:72]
+inv.bw.palette.part4 <- inv.bw.palette[73:90]
+
+inv.bw.part1.plot <- inv.bw.part1.df %>% ggplot(aes(x = start/1e6, y = score, group=1, fill = genotype)) +
+  geom_area(aes(group = strand)) +
+  geom_line(aes(group = strand), col = "black", linewidth = 0.25) +
+  ylab("Read count") + xlab("Coordinate [Mb]") +
+  scale_fill_manual(values=c(inv.bw.palette.part1)) +
+  xlim(interval_start/1e6, interval_end/1e6) +
+    geom_hline(yintercept=0, linetype="solid") +
+    geom_vline(xintercept=56884634/1e6, linetype="dashed") +
+    geom_vline(xintercept=56893129/1e6, linetype="dashed") +
+    geom_vline(xintercept=56898376/1e6, linetype="dashed") +
+    geom_vline(xintercept=56901292/1e6, linetype="dashed") +
+    geom_vline(xintercept=56903183/1e6, linetype="dashed") +
+    geom_vline(xintercept=56904792/1e6, linetype="dashed") +
+    geom_vline(xintercept=56907608/1e6, linetype="dashed") +
+  facet_wrap(~ genotype, scales = "free", ncol = 3) +
+  theme_bw() + theme(aspect.ratio=0.25, panel.grid.minor = element_blank(), strip.background = element_blank(), legend.position="none")
+inv.bw.part1.plot
+
+pdf("./Rplots/OTX2/OTX2.loxP7.inv.coverage.part.1.pdf", width=10, height=10, useDingbats=FALSE)
+inv.bw.part1.plot
+dev.off()
+
+inv.bw.part2.plot <- inv.bw.part2.df %>% ggplot(aes(x = start/1e6, y = score, group=1, fill = genotype)) +
+  geom_area(aes(group = strand)) +
+  geom_line(aes(group = strand), col = "black", linewidth = 0.25) +
+  ylab("Read count") + xlab("Coordinate [Mb]") +
+  scale_fill_manual(values=c(inv.bw.palette.part2)) +
+  xlim(interval_start/1e6, interval_end/1e6) +
+  geom_hline(yintercept=0, linetype="solid") +
+  geom_vline(xintercept=56884634/1e6, linetype="dashed") +
+  geom_vline(xintercept=56893129/1e6, linetype="dashed") +
+  geom_vline(xintercept=56898376/1e6, linetype="dashed") +
+  geom_vline(xintercept=56901292/1e6, linetype="dashed") +
+  geom_vline(xintercept=56903183/1e6, linetype="dashed") +
+  geom_vline(xintercept=56904792/1e6, linetype="dashed") +
+  geom_vline(xintercept=56907608/1e6, linetype="dashed") +
+  facet_wrap(~ genotype, scales = "free", ncol = 3) +
+  theme_bw() + theme(aspect.ratio=0.25, panel.grid.minor = element_blank(), strip.background = element_blank(), legend.position="none")
+inv.bw.part2.plot
+
+pdf("./Rplots/OTX2/OTX2.loxP7.inv.coverage.part.2.pdf", width=10, height=10, useDingbats=FALSE)
+inv.bw.part2.plot
+dev.off()
+
+inv.bw.part3.plot <- inv.bw.part3.df %>% ggplot(aes(x = start/1e6, y = score, group=1, fill = genotype)) +
+  geom_area(aes(group = strand)) +
+  geom_line(aes(group = strand), col = "black", linewidth = 0.25) +
+  ylab("Read count") + xlab("Coordinate [Mb]") +
+  scale_fill_manual(values=c(inv.bw.palette.part3)) +
+  xlim(interval_start/1e6, interval_end/1e6) +
+  geom_hline(yintercept=0, linetype="solid") +
+  geom_vline(xintercept=56884634/1e6, linetype="dashed") +
+  geom_vline(xintercept=56893129/1e6, linetype="dashed") +
+  geom_vline(xintercept=56898376/1e6, linetype="dashed") +
+  geom_vline(xintercept=56901292/1e6, linetype="dashed") +
+  geom_vline(xintercept=56903183/1e6, linetype="dashed") +
+  geom_vline(xintercept=56904792/1e6, linetype="dashed") +
+  geom_vline(xintercept=56907608/1e6, linetype="dashed") +
+  facet_wrap(~ genotype, scales = "free", ncol = 3) +
+  theme_bw() + theme(aspect.ratio=0.25, panel.grid.minor = element_blank(), strip.background = element_blank(), legend.position="none")
+inv.bw.part3.plot
+
+pdf("./Rplots/OTX2/OTX2.loxP7.inv.coverage.part.3.pdf", width=10, height=10, useDingbats=FALSE)
+inv.bw.part3.plot
+dev.off()
+
+inv.bw.part4.plot <- inv.bw.part4.df %>% ggplot(aes(x = start/1e6, y = score, group=1, fill = genotype)) +
+  geom_area(aes(group = strand)) +
+  geom_line(aes(group = strand), col = "black", linewidth = 0.25) +
+  ylab("Read count") + xlab("Coordinate [Mb]") +
+  scale_fill_manual(values=c(inv.bw.palette.part4)) +
+  xlim(interval_start/1e6, interval_end/1e6) +
+  geom_hline(yintercept=0, linetype="solid") +
+  geom_vline(xintercept=56884634/1e6, linetype="dashed") +
+  geom_vline(xintercept=56893129/1e6, linetype="dashed") +
+  geom_vline(xintercept=56898376/1e6, linetype="dashed") +
+  geom_vline(xintercept=56901292/1e6, linetype="dashed") +
+  geom_vline(xintercept=56903183/1e6, linetype="dashed") +
+  geom_vline(xintercept=56904792/1e6, linetype="dashed") +
+  geom_vline(xintercept=56907608/1e6, linetype="dashed") +
+  facet_wrap(~ genotype, scales = "free", ncol = 3) +
+  theme_bw() + theme(aspect.ratio=0.25, panel.grid.minor = element_blank(), strip.background = element_blank(), legend.position="none")
+inv.bw.part4.plot
+
+pdf("./Rplots/OTX2/OTX2.loxP7.inv.coverage.part.4.pdf", width=10, height=10, useDingbats=FALSE)
+inv.bw.part4.plot
+dev.off()
+```
+
+# Effect on gene expression
+
+The following chuncks report the analysis of the impact of the synthetic architectures on gene expression
+
+## High-confidence architectures
+
+This chuck report the identification of high-confidence architectures
+
+```{r, eval = F}
+# R
+
+# Load architecture information
+
+loxP7.score.df <- read.csv("/lustre/scratch126/gengen/projects/escramble/Data/AN_data/134_architectures_scores.csv")
+# 134 architectures
+
+# Reformat table
+
+loxP7.score.conf.df <- loxP7.score.df %>%
+  mutate(read.count.1 = read_count_very_dim_1+read_count_dim_1+read_count_bright_1+read_count_very_bright_1,
+         read.count.2 = read_count_very_dim_2+read_count_dim_2+read_count_bright_2+read_count_very_bright_2) %>% 
+  dplyr::select(genotype = savana_notation_grammar, read.count.1, read.count.2, score.1 = mean_expression_score_1_scaled, score.2 = mean_expression_score_2_scaled)
+
+# Compute error associated with the gene expression scores
+loxP7.score.conf.df <- loxP7.score.conf.df %>% mutate(read.count=read.count.1+read.count.2, score.mean=(score.1+score.2)/2, score.max = pmax(score.1, score.2, na.rm = T), diff=score.max-score.mean)
+saveRDS(loxP7.score.conf.df, "./007_OTX2_loxP7_architectures_analysis/rds/loxP7.score.conf.df.rds")
+
+# Select high confidence architectures as architectures with more than 10 reads and a reproducibility score <= 0.5
+# 
+high.conf.architectures <- loxP7.score.conf.df %>% filter(score.mean >= -0.15 & read.count >= 15 & diff <= 0.25) %>% pull(genotype)
+loxP7.score.high.conf.df <- loxP7.score.df %>% filter(savana_notation_grammar %in% high.conf.architectures)
+nrow(loxP7.score.high.conf.df)
+# 61 architectures
+saveRDS(loxP7.score.high.conf.df, "./007_OTX2_loxP7_architectures_analysis/rds/loxP7.score.high.conf.df.rds")
+write.table(loxP7.score.high.conf.df, "/lustre/scratch126/gengen/projects/escramble/Data/AN_data/66_high_conf_architectures_scores.tsv", sep = "\t", col.names = T, row.names = F, quote = F)
+
+# Reformat summary table
+
+# Dark gate
+loxP7.dark.score.rep.1.df <- loxP7.score.df %>%
+  dplyr::select(name = savana_notation_grammar, coverage = vector_assignment, grammar = normalized_grammar, path = path_syntax,
+                read_count = read_count_very_dim_1, read_percentage = percentage_very_dim_1) %>% mutate(replicate = 1, gate = "dark")
+loxP7.dark.score.rep.2.df <- loxP7.score.df %>%
+  dplyr::select(name = savana_notation_grammar, coverage = vector_assignment, grammar = normalized_grammar, path = path_syntax,
+                read_count = read_count_very_dim_2, read_percentage = percentage_very_dim_2) %>% mutate(replicate = 2, gate = "dark")
+# Dim gate
+loxP7.dim.score.rep.1.df <- loxP7.score.df %>%
+  dplyr::select(name = savana_notation_grammar, coverage = vector_assignment, grammar = normalized_grammar, path = path_syntax,
+                read_count = read_count_dim_1, read_percentage = percentage_dim_1) %>% mutate(replicate = 1, gate = "dim")
+loxP7.dim.score.rep.2.df <- loxP7.score.df %>%
+  dplyr::select(name = savana_notation_grammar, coverage = vector_assignment, grammar = normalized_grammar, path = path_syntax,
+                read_count = read_count_dim_2, read_percentage = percentage_dim_2) %>% mutate(replicate = 2, gate = "dim")
+# Medium gate
+loxP7.medium.score.rep.1.df <- loxP7.score.df %>%
+  dplyr::select(name = savana_notation_grammar, coverage = vector_assignment, grammar = normalized_grammar, path = path_syntax,
+                read_count = read_count_bright_1, read_percentage = percentage_bright_1) %>% mutate(replicate = 1, gate = "medium")
+loxP7.medium.score.rep.2.df <- loxP7.score.df %>%
+  dplyr::select(name = savana_notation_grammar, coverage = vector_assignment, grammar = normalized_grammar, path = path_syntax,
+                read_count = read_count_bright_2, read_percentage = percentage_bright_2) %>% mutate(replicate = 2, gate = "medium")
+# Bright gate
+loxP7.bright.score.rep.1.df <- loxP7.score.df %>%
+  dplyr::select(name = savana_notation_grammar, coverage = vector_assignment, grammar = normalized_grammar, path = path_syntax,
+                read_count = read_count_very_bright_1, read_percentage = percentage_very_bright_1) %>% mutate(replicate = 1, gate = "bright")
+loxP7.bright.score.rep.2.df <- loxP7.score.df %>%
+  dplyr::select(name = savana_notation_grammar, coverage = vector_assignment, grammar = normalized_grammar, path = path_syntax,
+                read_count = read_count_very_bright_2, read_percentage = percentage_very_bright_2) %>% mutate(replicate = 2, gate = "bright")
+# Combine
+loxP7.summary.df <- rbind(loxP7.dark.score.rep.1.df, loxP7.dark.score.rep.2.df, loxP7.dim.score.rep.1.df, loxP7.dim.score.rep.2.df, loxP7.medium.score.rep.1.df, loxP7.medium.score.rep.2.df, loxP7.bright.score.rep.1.df, loxP7.bright.score.rep.2.df) %>%
+  mutate(high_confidence = case_when(name %in% high.conf.architectures ~ "TRUE", T ~ "FALSE")) %>% 
+  dplyr::select(name, coverage, grammar, path, high_confidence, replicate, gate, read_count, read_percentage) %>% arrange(name)
+write.table(loxP7.summary.df, "./Summary/OTX2/loxPsym.7.pool.PCR.summary.tsv", sep="\t", col.names = T, row.names = F, quote = F)
+```
+
+Plot the correlation between the number of reads and reproducibility
+
+```{r message=FALSE, warning=FALSE, eval = T}
+
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+
+# Load data
+
+loxP7.score.conf.df <- readRDS("./007_OTX2_loxP7_architectures_analysis/rds/loxP7.score.conf.df.rds")
+
+# Compute values for error bars
+
+loxP7.score.conf.df <- loxP7.score.conf.df %>% 
+  mutate(read.count.min = log10(pmin(read.count.1, read.count.2, na.rm=T)),
+         read.count.max = log10(pmax(read.count.1, read.count.2, na.rm=T)),
+         read.count.mean = (read.count.min+read.count.max)/2)
+
+# Plot
+
+loxP7.score.conf.plot <- loxP7.score.conf.df %>% ggplot(aes(x = diff*100, y = read.count.mean)) +
+  geom_point() +
+  geom_errorbar(aes(ymin = read.count.min, ymax = read.count.max), width = 0.05) +
+  ylab("Read count [log10]") + xlab("Gene expression score difference") +
+  scale_y_continuous(breaks = c(0, 1, 2, 3, 4, 5, 6)) +
+  geom_vline(xintercept=25, linetype="dashed") +
+  geom_hline(yintercept=log10(15), linetype="dashed") +
+  theme_bw() + theme(aspect.ratio=1, panel.grid.minor = element_blank())
+loxP7.score.conf.plot
+
+pdf("./Rplots/OTX2/OTX2.loxP7.architecture.conf.pdf", width=5, height=5, useDingbats=FALSE)
+loxP7.score.conf.plot
+dev.off()
+```
+
+## Read distribution in sorting gates
+
+This chunk reports the read distribution in sorting gates for high-confidence architectures
+
+```{r, eval = F}
+# R
+
+# Load architecture information
+
+loxP7.score.df <- readRDS("./007_OTX2_loxP7_architectures_analysis/rds/loxP7.score.high.conf.df.rds")
+# 61 architectures
+
+# Format table
+loxP7.read.distribution.df <- loxP7.score.df %>%
+  dplyr::select(genotype = savana_notation_grammar,
+                very.dim_1 = percentage_very_dim_1, dim_1 = percentage_dim_1, bright_1 = percentage_bright_1, very.bright_1 = percentage_very_bright_1,
+                very.dim_2 = percentage_very_dim_2, dim_2 = percentage_dim_2, bright_2 = percentage_bright_2, very.bright_2 = percentage_very_bright_2) %>% 
+  pivot_longer(-genotype, names_to = "sample", values_to = "perc") %>% 
+  tidyr::separate(sample, c("sample", "rep"), sep = "_")
+
+# Save
+saveRDS(loxP7.read.distribution.df, "./007_OTX2_loxP7_architectures_analysis/rds/loxP7.read.distribution.rds")
+```
+
+Plot
+
+```{r message=FALSE, warning=FALSE, eval = T}
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(forcats)
+library(wesanderson)
+
+# Load results
+loxP7.read.distribution.df <- readRDS("./007_OTX2_loxP7_architectures_analysis/rds/loxP7.read.distribution.rds")
+
+# Plot
+loxP7.read.distribution.palette <- wes_palette("Zissou1", length(unique(loxP7.read.distribution.df$genotype))-1, type = "continuous")
+loxP7.read.distribution.plot <- loxP7.read.distribution.df %>%
+  mutate(perc = 100*perc) %>% 
+  mutate(sample = case_when(sample == "very.dim" ~ "dark", sample == "dim" ~ "dim", sample == "bright" ~ "medium", sample == "very.bright" ~ "bright")) %>% 
+  mutate(SAMPLE = fct_relevel(sample, "dark", "dim", "medium", "bright")) %>%
+  ggplot(aes(x=SAMPLE, y=perc, group=1, col = genotype)) +
+  geom_point(aes(x = SAMPLE, y = perc), size = 1) +
+  geom_point(stat='summary', fun.y=sum, size = 2) +
+  geom_line(stat='summary', fun.y=sum) +
+  ylab("Percent of events in sorting gate") +
+  scale_colour_manual(values=c(loxP7.read.distribution.palette, "#D1D3D4")) +
+  facet_wrap(~ genotype, scales = "free", ncol = 10) +
+  theme_bw() + theme(aspect.ratio=1, strip.background = element_blank(), panel.grid.minor = element_blank(), axis.title.x=element_blank(), axis.text.x = element_text(angle = 45, vjust = 1, hjust=1), legend.position="none")
+loxP7.read.distribution.plot
+
+pdf("/lustre/scratch126/gengen/projects/escramble/Notebook/Rplots/OTX2/OTX2.loxP7.gate.plot.pdf", width=15, height=10, useDingbats=FALSE)
+loxP7.read.distribution.plot
+dev.off()
+```
+
+## Gene expression scores
+
+This chunk reports gene expression scores for high-confidence architectures
+
+```{r, eval = F}
+# R
+
+# Format data
+loxP7.gene.expression.df <- loxP7.score.df %>%
+  select(genotype = savana_notation_grammar, score.1 = mean_expression_score_1_scaled, score.2 = mean_expression_score_2_scaled)
+
+# Plot reformatted scores
+plot(loxP7.gene.expression.df$score.1, loxP7.gene.expression.df$score.2)
+
+# Pivot the data to long format and create a replicate identifier
+loxP7.gene.expression.df <- loxP7.gene.expression.df %>%
+  pivot_longer(cols = c(score.1, score.2), names_to = "rep", values_to = "score") %>%
+  mutate(rep = ifelse(rep == "score.1", 1, 2)) %>% mutate(score = score * 100)
+
+# Save
+saveRDS(loxP7.gene.expression.df, "./007_OTX2_loxP7_architectures_analysis/rds/loxP7.gene.expression.rds")
+```
+
+Plot
+
+```{r message=FALSE, warning=FALSE, eval = T}
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+
+# Load results
+loxP7.gene.expression.df <- readRDS("./007_OTX2_loxP7_architectures_analysis/rds/loxP7.gene.expression.rds")
+length(unique(loxP7.gene.expression.df$genotype))
+# 61 architectures
+
+# Compute mean and standard deviation over replicates
+loxP7.gene.expression.sd.df <- loxP7.gene.expression.df %>% filter(genotype != "DEL_1-6-INVDUP_6-7") %>%
+  group_by(genotype) %>%
+  summarise(mean = mean(score, na.rm = TRUE), 
+            diff = max(score, na.rm = TRUE) - mean(score, na.rm = TRUE))
+
+# Plot
+loxP7.gene.expression.plot <- loxP7.gene.expression.df %>% filter(genotype != "DEL_1-6-INVDUP_6-7") %>% 
+  ggplot() + 
+  geom_bar(aes(x = reorder(genotype, score), y = score), 
+           position = "dodge", stat = "summary", color = "black", 
+           size = 0.25, width = 0) +
+  geom_errorbar(data = loxP7.gene.expression.sd.df, 
+                aes(x = genotype, ymin = mean - diff, ymax = mean + diff), 
+                linewidth = 0.5) +
+  geom_point(aes(x = reorder(genotype, -score), y = score), size = 1.5) +
+  ylab("Gene expression score") + ylim(-30,130) +
+  geom_hline(yintercept = 0, linetype = "solid", linewidth = 0.25) +
+  geom_hline(yintercept = 100, linetype = "solid", linewidth = 0.25) +
+  theme_bw() + 
+  theme(aspect.ratio = 3.236, 
+        panel.grid.minor = element_blank(), 
+        axis.title.y = element_blank(),
+        axis.text.y = element_text(size = 10)) + 
+  coord_flip()
+loxP7.gene.expression.plot
+
+pdf("/lustre/scratch126/gengen/projects/escramble/Notebook/Rplots/OTX2/OTX2.loxP7.gene.expression.score.plot.pdf", width=10, height=7, useDingbats=FALSE)
+loxP7.gene.expression.plot
+dev.off()
+```
+
+## Effect of inversion
+
+This chunk aims to assess the impact of inversion on gene expression
+
+To do so, we compare the gene expression scores of architectures with inversion with the corresponding architecture with no information
+
+A table is manually generated by associating inverted and non-inverted scores
+
+```{r, eval = F}
+# R
+
+# Save previous table for modification
+
+write.table(loxP7.gene.expression.df, "./007_OTX2_loxP7_architectures_analysis/loxP7.gene.expression.inversion.tsv", sep = "\t", col.names = T, row.names = F, quote = F)
+```
+
+Plot
+
+```{r message=FALSE, warning=FALSE, eval = T}
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+
+# Load modified table
+
+loxP7.gene.expression.inversion.pairs.df <- read.csv("./007_OTX2_loxP7_architectures_analysis/loxP7.gene.expression.inversion.mod.csv")
+length(unique(loxP7.gene.expression.inversion.pairs.df$inv_genotype))
+# 33 pairs
+
+# Compute mean and error bars
+
+loxP7.gene.expression.inversion.pairs.df <- loxP7.gene.expression.inversion.pairs.df %>% group_by(inv_genotype) %>%
+  summarise(inv.score.mean = mean(inv_score, na.rm = T),
+            inv.score.max = max(inv_score, na.rm = T)-inv.score.mean,
+            normal.score.mean = mean(normal_score, na.rm = T),
+            normal.score.max = max(normal_score, na.rm = T)-normal.score.mean,)
+
+# Compute corelation
+Rho <- cor.test(loxP7.gene.expression.inversion.pairs.df$inv.score.mean, loxP7.gene.expression.inversion.pairs.df$normal.score.mean)
+
+# Plot
+
+loxP7.gene.expression.inversion.pairs.plot <- loxP7.gene.expression.inversion.pairs.df %>% ggplot(aes(x = normal.score.mean, y = inv.score.mean)) +
+  geom_abline(slope = 1, intercept = 0, linetype = "dashed") +
+  geom_errorbar(aes(xmin = normal.score.mean-normal.score.max, xmax = normal.score.mean+normal.score.max)) +
+  geom_errorbar(aes(ymin = inv.score.mean-inv.score.max, ymax = inv.score.mean+inv.score.max)) +
+  geom_point(size = 2, shape = 21, fill = "#3B9BB3") +
+  xlim(-15,110) + ylim(-15,110) + scale_x_continuous(breaks = c(0, 25, 50, 75, 100)) + scale_y_continuous(breaks = c(0, 25, 50, 75, 100)) +
+  xlab("Gene expression score [normal orientation]") + ylab("Gene expression score [inverted orientation]") + ggtitle(paste0("Rho = ", round(Rho$estimate,3), " | P = ", sprintf("%.3e", Rho$p.value))) +
+  theme_bw() + theme(aspect.ratio=1, panel.grid.minor = element_blank())
+loxP7.gene.expression.inversion.pairs.plot
+
+pdf("/lustre/scratch126/gengen/projects/escramble/Notebook/Rplots/OTX2/OTX2.loxP7.gene.expression.inversion.pairs.plot.pdf", width=5, height=5, useDingbats=FALSE)
+loxP7.gene.expression.inversion.pairs.plot
+dev.off()
+```
+
+## Gene expression score aggregation
+
+The following chunk report the quantification of domain contribution to gene expression by aggregating gene expression scores
+
+```{r, eval = F}
+# R
+
+loxP7.score.high.conf.aggregate.df <- loxP7.score.high.conf.df %>% 
+  dplyr::select(genotype = savana_notation_grammar, score.1 = mean_expression_score_1_scaled, score.2 = mean_expression_score_2_scaled, coverage = sum_coverage)  %>% 
+  mutate(coverage = gsub("^\\(|\\)$", "", coverage)) %>%
+  separate(coverage, into = c("R4A", "R4B", "R5A", "R5B", "R5C", "R5D"), sep = ", ", convert = TRUE)
+
+# Aggregate values
+
+loxP7.none.score.df <- loxP7.score.high.conf.aggregate.df %>% filter(R4A == 0 & R4B == 0 & R5A == 0 & R5B == 0 & R5C == 0 & R5D == 0) %>%
+  dplyr::select(genotype, score.1, score.2) %>% 
+  pivot_longer(-genotype, names_to = "region", values_to = "score") %>% 
+  mutate(domain = "none") %>% dplyr::select(domain, score)
+loxP7.R4A.score.df <- loxP7.score.high.conf.aggregate.df %>% filter(R4A == 1) %>%
+  dplyr::select(genotype, score.1, score.2) %>% 
+  pivot_longer(-genotype, names_to = "region", values_to = "score") %>% 
+  mutate(domain = "R4A") %>% dplyr::select(domain, score)
+loxP7.R4B.score.df <- loxP7.score.high.conf.aggregate.df %>% filter(R4B == 1) %>%
+  dplyr::select(genotype, score.1, score.2) %>% 
+  pivot_longer(-genotype, names_to = "region", values_to = "score") %>% 
+  mutate(domain = "R4B") %>% dplyr::select(domain, score)
+loxP7.R5A.score.df <- loxP7.score.high.conf.aggregate.df %>% filter(R5A == 1) %>%
+  dplyr::select(genotype, score.1, score.2) %>% 
+  pivot_longer(-genotype, names_to = "region", values_to = "score") %>% 
+  mutate(domain = "R5A") %>% dplyr::select(domain, score)
+loxP7.R5B.score.df <- loxP7.score.high.conf.aggregate.df %>% filter(R5B == 1) %>%
+  dplyr::select(genotype, score.1, score.2) %>% 
+  pivot_longer(-genotype, names_to = "region", values_to = "score") %>% 
+  mutate(domain = "R5B") %>% dplyr::select(domain, score)
+loxP7.R5C.score.df <- loxP7.score.high.conf.aggregate.df %>% filter(R5C == 1) %>%
+  dplyr::select(genotype, score.1, score.2) %>% 
+  pivot_longer(-genotype, names_to = "region", values_to = "score") %>% 
+  mutate(domain = "R5C") %>% dplyr::select(domain, score)
+loxP7.R5D.score.df <- loxP7.score.high.conf.aggregate.df %>% filter(R5D == 1) %>%
+  dplyr::select(genotype, score.1, score.2) %>% 
+  pivot_longer(-genotype, names_to = "region", values_to = "score") %>% 
+  mutate(domain = "R5D") %>% dplyr::select(domain, score)
+loxP7.WT.score.df <- loxP7.score.high.conf.aggregate.df %>% filter(R4A == 1 & R4B == 1 & R5A == 1 & R5B == 1 & R5C == 1 & R5D == 1) %>%
+  dplyr::select(genotype, score.1, score.2) %>% 
+  pivot_longer(-genotype, names_to = "region", values_to = "score") %>% 
+  mutate(domain = "all") %>% dplyr::select(domain, score)
+loxP7.aggregate.score.df <- rbind(loxP7.none.score.df, loxP7.R4A.score.df, loxP7.R4B.score.df, loxP7.R5A.score.df, loxP7.R5B.score.df, loxP7.R5C.score.df, loxP7.R5D.score.df, loxP7.WT.score.df)
+saveRDS(loxP7.aggregate.score.df, "./007_OTX2_loxP7_architectures_analysis/rds/loxP7.aggregate.score.df.rds")
+```
+
+Plot
+
+```{r message=FALSE, warning=FALSE, eval = T}
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+
+# Load result
+loxP7.aggregate.score.df <- readRDS("/lustre/scratch126/gengen/projects/escramble/Notebook/007_OTX2_loxP7_architectures_analysis/rds/loxP7.aggregate.score.df.rds")
+
+# Plot
+
+loxP7.aggregate.score.plot <- loxP7.aggregate.score.df %>%
+  mutate(DOMAIN = fct_relevel(domain, "none", "R4A", "R4B", "R5A", "R5B", "R5C", "R5D", "all")) %>%
+  ggplot(aes(x = DOMAIN, y = score*100, fill = DOMAIN)) +
+  geom_boxplot(outlier.shape = NA) +
+  geom_jitter(width = 0.1, size = 1, shape = 21, fill = "white") +
+  ylab("Aggregated gene expression score") + #ylim(-20, 120) +
+  scale_y_continuous(breaks = c(0, 25, 50, 75, 100)) +
+  geom_hline(yintercept=0, linetype="dashed") +
+  geom_hline(yintercept=100, linetype="dashed") +
+  scale_fill_manual(values=c("#A4A4A4", wes_palette("Zissou1", 6, type = "continuous"), "#A4A4A4")) +
+  theme_bw() + theme(aspect.ratio=1, panel.grid.minor = element_blank(), panel.grid.minor.x = element_blank(), legend.position="none", axis.title.x = element_blank(), axis.text.x = element_text(angle = 45, vjust = 1, hjust=1))
+loxP7.aggregate.score.plot
+
+pdf("/lustre/scratch126/gengen/projects/escramble/Notebook/Rplots/OTX2/OTX2.loxP7.aggregate.score.plot.pdf", width=5, height=5, useDingbats=FALSE)
+loxP7.aggregate.score.plot
+dev.off()
+```
+
+# Super-enhancer activity
+
+These chunks report the use of of linear models to predict and characterise OTX2 super-enhancer activity according to Dukler et al. Nature Genetics (2017) 49, 2-4
+
+Original scripts and data were recovered from https://github.com/CshlSiepelLab/super-enhancer-code/tree/master
+
+Because inversions do not seem to impact gene expression, we consider only domain coverage for the models
+
+## Model selection
+
+This chunck identify the best models and error functions
+
+```{r, eval = F}
+# R
+
+library(DEoptim)
+
+# Call function to compute the different models
+source("/lustre/scratch126/gengen/projects/escramble/Notebook/Scripts/enhancerLib.models.R")
+
+# Load data
+loxP7.score.high.conf.df <- read.csv("/lustre/scratch126/gengen/projects/escramble/Data/AN_data/66_high_conf_architectures_scores.tsv", sep = "\t")
+
+# Reformat
+loxP7.score.high.conf.melt.df <- loxP7.score.high.conf.df %>%
+  select(genotype = savana_notation_grammar, score.1 = mean_expression_score_1_scaled, score.2 = mean_expression_score_2_scaled) %>%
+  pivot_longer(cols = c(score.1, score.2), names_to = "rep", values_to = "expression") %>%
+  mutate(rep = ifelse(rep == "score.1", 1, 2)) %>% 
+  left_join((loxP7.score.high.conf.df %>% dplyr::select(genotype = savana_notation_grammar, domain.coverage = sum_coverage)), by = "genotype") %>% 
+  mutate(domain.coverage = gsub("^\\(|\\)$", "", domain.coverage)) %>%
+  separate(domain.coverage, into = c("R4A", "R4B", "R5A", "R5B", "R5C", "R5D"), sep = ", ", convert = TRUE)
+
+# Scale score between 0 and 1
+loxP7.score.high.conf.melt.df$expression <- loxP7.score.high.conf.melt.df$expression - min(loxP7.score.high.conf.melt.df$expression)
+loxP7.score.high.conf.melt.df$expression <- loxP7.score.high.conf.melt.df$expression/max(loxP7.score.high.conf.melt.df$expression)
+
+# Add pseudocount
+loxP7.score.high.conf.melt.df[which(loxP7.score.high.conf.melt.df$expression == 0),]$expression <- 0.01
+loxP7.score.high.conf.melt.df$expression <- loxP7.score.high.conf.melt.df$expression*100
+saveRDS(loxP7.score.high.conf.melt.df, "./007_OTX2_loxP7_architectures_analysis/rds/loxP7.score.high.conf.melt.df.rds")
+
+# Define response and design matrix
+expression <- loxP7.score.high.conf.melt.df$expression
+design.df <- as.data.frame(loxP7.score.high.conf.melt.df %>% dplyr::select(R4A, R4B, R5A, R5B, R5C, R5D))
+
+##########################################
+# Test models with normal error
+
+# Test linear model with normal error
+linear.norm <- deOptim.mod(response = expression,
+                           design.mat = design.df,
+                           ll.fun = linear.mod, parms = runif(8),
+                           lower = c(10^-3, 10^-3, 10^-2, 10^-1, 10, 100 , 200, 200), upper = 200,
+                           error.mod = "gaussian", refine = TRUE)
+# Generate predictions
+pred.linear.norm <- linear.predict(design.mat = design.df, x = linear.norm$par)
+saveRDS(pred.linear.norm, "./007_OTX2_loxP7_architectures_analysis/rds/pred.linear.norm.rds")
+
+pvr.plot(pred.linear.norm$expression, expression, loxP7.score.high.conf.melt.df$genotype)
+plot.model(model = linear.norm, observed = expression, design.mat = design.df, val.fun = linear.val, error.type = "gaussian")
+R.squared.fun(expression, pred.linear.norm$expression) # 0.7722431
+
+# Manually plot model performance
+
+linear.norm.plot.df <- cbind.data.frame(c=as.factor(loxP7.score.high.conf.melt.df$genotype),p=as.numeric(pred.linear.norm$expression),o=as.numeric(expression))
+linear.norm.plot.means <- linear.norm.plot.df %>% group_by(c) %>% summarise(p = mean(p), o=mean(o))
+
+linear.norm.plot <- ggplot()+
+  geom_point(data=linear.norm.plot.means,aes(x=p,y=o),color="#EE2524",size=3)+
+  geom_point(data=linear.norm.plot.df,aes(x=p,y=o))+
+  xlim(0,100) + ylim(0,100) +
+  geom_abline(slope=1) +
+  ylab("Observed [scaled]") +
+  xlab("Predicted [scaled]") + ggtitle("Linear/additive - normal error") +
+  theme_bw() + theme(aspect.ratio=1, panel.grid.minor = element_blank())
+linear.norm.plot
+
+# Test multiplicative model with normal error
+multi.norm <- deOptim.mod(response = expression,
+                          design.mat = design.df,
+                          ll.fun = multiplicative.model, parms = runif(8),
+                          lower = c(rep(-50, 7), 10^-4), upper = 200,
+                          error.mod="gaussian", refine=TRUE)
+# Generate predictions
+pred.multi.norm <- multiplicative.predict(design.mat = design.df, x = multi.norm$par)
+saveRDS(pred.multi.norm, "./007_OTX2_loxP7_architectures_analysis/rds/pred.multi.norm.rds")
+
+pvr.plot(pred.multi.norm$expression, expression, loxP7.score.high.conf.melt.df$genotype)
+plot.model(model = multi.norm, observed = expression, design.mat = design.df, val.fun = multiplicative.val,error.type="gaussian")
+R.squared.fun(expression, pred.multi.norm$expression) # 0.7175619
+
+# Manually plot model performance
+
+multi.norm.plot.df <- cbind.data.frame(c=as.factor(loxP7.score.high.conf.melt.df$genotype),p=as.numeric(pred.multi.norm$expression),o=as.numeric(expression))
+multi.norm.plot.means <- multi.norm.plot.df %>% group_by(c) %>% summarise(p = mean(p), o=mean(o))
+
+multi.norm.plot <- ggplot()+
+  geom_point(data=multi.norm.plot.means,aes(x=p,y=o),color="#EE2524",size=3)+
+  geom_point(data=multi.norm.plot.df,aes(x=p,y=o))+
+  xlim(0,100) + ylim(0,100) +
+  geom_abline(slope=1) +
+  ylab("Observed [scaled]") +
+  xlab("Predicted [scaled]") + ggtitle("Linear/exponential - normal error") +
+  theme_bw() + theme(aspect.ratio=1, panel.grid.minor = element_blank())
+multi.norm.plot
+
+## Test logistic model with normal error
+log.norm <- deOptim.mod(response = expression,
+                        design.mat = design.df,
+                        ll.fun=logistic.model, parms = runif(9),
+                        lower = c(rep(-50, 8), 10^-3), upper = 200,
+                        error.mod="gaussian", refine=TRUE)
+# Generate predictions
+pred.log.norm <- logistic.predict(design.mat = design.df, x = log.norm$par)
+saveRDS(pred.log.norm, "./007_OTX2_loxP7_architectures_analysis/rds/pred.log.norm.rds")
+
+pvr.plot(pred.log.norm$expression, expression, loxP7.score.high.conf.melt.df$genotype)
+plot.model(model = log.norm, observed = expression, design.mat = design.df, val.fun = logistic.val, scale= log.norm$par[8], error.type="gaussian")
+R.squared.fun(expression, pred.log.norm$expression) # 0.7978861
+
+# Compute enhancers relative contribution
+
+total_var_explained <- var(pred.log.norm$expression)
+coeff <- log.norm$par[2:7]
+#contributions <- design.df * log.norm$par
+contributions <- design.df * coeff[col(design.df)]
+var_contributions <- apply(contributions, 2, var)
+fraction_contributions <- var_contributions / total_var_explained
+fraction_contributions
+# rescale contribution to 100
+relative_fraction_contributions <- (fraction_contributions + min(fraction_contributions)) / sum(fraction_contributions + min(fraction_contributions))
+relative_fraction_contributions
+
+# Manually plot model performance
+
+log.norm.plot.df <- cbind.data.frame(c=as.factor(loxP7.score.high.conf.melt.df$genotype),p=as.numeric(pred.log.norm$expression),o=as.numeric(expression))
+log.norm.plot.means <- log.norm.plot.df %>% group_by(c) %>% summarise(p = mean(p), o=mean(o))
+
+log.norm.plot <- ggplot()+
+  geom_point(data=log.norm.plot.means,aes(x=p,y=o),color="#EE2524",size=3)+
+  geom_point(data=log.norm.plot.df,aes(x=p,y=o))+
+  xlim(0,100) + ylim(0,100) +
+  geom_abline(slope=1) +
+  ylab("Observed [scaled]") +
+  xlab("Predicted [scaled]") + ggtitle("Linear/logistic - normal error") +
+  theme_bw() + theme(aspect.ratio=1, panel.grid.minor = element_blank())
+log.norm.plot
+
+# Prepare activity plot
+
+logistic.plot.data.df <- prepare.model.plot.data(model = log.norm, observed = expression, design.mat = design.df, val.fun = logistic.val, scale= log.norm$par[8], error.type="gaussian")
+logistic.plot.data.df$real$score <- loxP7.score.high.conf.melt.df$expression
+logistic.plot.data.df$out$score <- ((logistic.plot.data.df$out$expression))
+logistic.plot.data.df$err$score <- ((logistic.plot.data.df$err$y))
+cc <- scales::seq_gradient_pal("#93BBB7", "#93BBB7", "Lab")(seq(0,0.5,length.out=length(unique(logistic.plot.data.df$err$err$Quantile))))
+
+logistic.plot <- ggplot()+
+  geom_polygon(data=logistic.plot.data.df$err,aes(x=x,y=score,fill=Quantile),alpha=0.5,fill="#93BBB7")+
+  geom_line(data=logistic.plot.data.df$out,aes(activity,score),color="#EE2524",size=1)+
+  geom_point(data=logistic.plot.data.df$real,aes(activity,score), shape = 21, fill="white")+
+  theme_bw(base_size = 28)+
+  xlab("Enhancer activity")+ggtitle("Logistic activity")+
+  scale_y_continuous(name="Gene expression score", limits=c(-8, 120),breaks=c(0, 25, 50, 75, 100))+
+  geom_hline(yintercept=50, linetype="dashed", color = "black", size=0.5) +
+  geom_vline(xintercept=0, linetype="dashed", color = "black", size=0.5) +
+  theme_bw() + theme(aspect.ratio=1, panel.grid.minor = element_blank(), legend.position="none")
+logistic.plot
+
+# Combine and save plots
+
+pdf("/lustre/scratch126/gengen/projects/escramble/Notebook/Rplots/OTX2/OTX2.loxP7.linear.models.summary.pdf", width=12, height=4, useDingbats=FALSE)
+ggarrange(linear.norm.plot, multi.norm.plot, log.norm.plot, logistic.plot, nrow = 1)
+dev.off()
+
+##########################################
+# Test models with log-normal error
+
+# Test linear model with log-normal error
+
+linear.ln <- deOptim.mod(response = expression,
+                         design.mat = design.df,
+                         ll.fun = linear.mod, parms = runif(8),
+                         lower = c(rep(-200, 7), 10), upper = 200,
+                         error.mod = "log-normal", refine = TRUE)
+# Generate prediction
+pred.linear <- linear.predict(design.mat = design.df, x = linear.ln$par)
+saveRDS(pred.linear, "./007_OTX2_loxP7_architectures_analysis/rds/pred.linear.rds")
+
+pvr.plot(pred.linear$expression, expression, loxP7.score.high.conf.melt.df$genotype)
+plot.model(model = linear.ln, observed = expression, design.mat =design.df, val.fun = linear.val, error.type = "log-normal")
+
+pvr.dat.linear.ln <- cbind.data.frame(c=as.factor(loxP7.score.high.conf.melt.df$genotype),p=as.numeric(pred.linear$expression),o=as.numeric(expression))
+means <- pvr.dat.linear.ln %>% group_by(c) %>% summarise(p = mean(p), o=mean(o))
+
+ggplot()+
+  geom_point(data=means,aes(x=p,y=o),color="red",size=3)+
+  geom_point(data=pvr.dat.linear.ln,aes(x=p,y=o))+
+  xlim(0,100) + ylim(0,100) +
+  geom_abline(slope=1)+
+  ylab("Observed")+
+  xlab("Predicted")+
+  theme_bw() + theme(aspect.ratio=1, panel.grid.minor = element_blank())
+
+# Test multiplicative model with log-normal error
+multi.ln <- deOptim.mod(response = expression,
+                        design.mat = design.df,
+                        ll.fun = multiplicative.model, parms = runif(8),
+                        lower = c(rep(-200, 7), 10^-2), upper = 200,
+                        error.mod = "log-normal", refine = TRUE)
+# Generate prediction
+pred.multi <- multiplicative.predict(design.mat = design.df, x = multi.ln$par)
+saveRDS(pred.multi, "./007_OTX2_loxP7_architectures_analysis/rds/pred.multi.rds")
+
+pvr.plot(pred.multi$expression, expression, loxP7.score.high.conf.melt.df$genotype)
+plot.model(model = multi.ln, observed = expression, design.mat = design.df, val.fun = multiplicative.val, error.type = "log-normal")
+
+# Test logistic model with log-normal error
+log.ln <- deOptim.mod(response = expression,
+                      design.mat = design.df,
+                      ll.fun = logistic.model, parms = runif(9),
+                      lower = c(rep(-200, 8), 10^-2), upper = 200,
+                      error.mod = "log-normal", refine = TRUE)
+# Generate prediction
+pred.log <- logistic.predict(design.mat = design.df, x = log.ln$par)
+saveRDS(pred.log, "./007_OTX2_loxP7_architectures_analysis/rds/pred.log.rds")
+
+pvr.plot(pred.log$expression, expression, loxP7.score.high.conf.melt.df$genotype)
+plot.model(model = log.ln, observed = expression, design.mat = design.df, val.fun = logistic.val, scale = log.ln$par[8], error.type = "log-normal")
+
+##########################################
+# Compare models
+
+BIC.df <- cbind.data.frame(model = rep(c("Additive", "Exponential", "Logistic"),2),
+                           error = c(rep("Normal",3),rep("Log-normal",3)),
+                           BIC = c(
+                             1,
+                             bic(linear.norm,nrow(design.df)) - bic(multi.norm,nrow(design.df)),
+                             bic(linear.norm,nrow(design.df)) - bic(log.norm,nrow(design.df)),
+                             bic(linear.norm,nrow(design.df)) - bic(linear.ln,nrow(design.df)),
+                             bic(linear.norm,nrow(design.df)) - bic(multi.ln,nrow(design.df)),
+                             bic(linear.norm,nrow(design.df)) - bic(log.ln,nrow(design.df))
+                             ))
+
+BIC.plot <- BIC.df %>% 
+  mutate(MOD = fct_relevel(model, "Additive", "Exponential", "Logistic")) %>%
+  mutate(ERR = fct_relevel(error, "Normal", "Log-normal")) %>%
+  ggplot(aes(x=MOD, y=BIC, fill=ERR)) +
+  geom_bar(stat = "identity", position="dodge")+
+  theme_bw(base_size = 12)+
+  xlab("Models")+
+  ylab("Relative BIC")+
+  scale_fill_manual("Error", values = c("#EE2524", "#93BBB7")) +
+  theme_bw() + theme(aspect.ratio=2, panel.grid.minor = element_blank(),axis.title.x=element_blank(),axis.text.x = element_text(angle = 45, vjust = 1, hjust=1))
+BIC.plot
+
+pdf("/lustre/scratch126/gengen/projects/escramble/Notebook/Rplots/OTX2/OTX2.loxP7.linear.models.BIC.pdf", width=3, height=4, useDingbats=FALSE)
+BIC.plot
+dev.off()
+```
+
+## Enhancer domain contribution
+
+This chunck report the quantification of the relative contribution of each enhancer domain
+
+We rerun the logistic-normal model for each replicates individually
+
+```{r, eval = F}
+# R
+
+# Format data
+
+loxP7.score.high.conf.melt.rep.1.df <- loxP7.score.high.conf.melt.df %>% filter(rep == 1)
+expression.rep.1 <- loxP7.score.high.conf.melt.rep.1.df$expression
+design.rep.1.df <- as.data.frame(loxP7.score.high.conf.melt.rep.1.df %>% dplyr::select(R4A, R4B, R5A, R5B, R5C, R5D))
+
+loxP7.score.high.conf.melt.rep.2.df <- loxP7.score.high.conf.melt.df %>% filter(rep == 2)
+expression.rep.2 <- loxP7.score.high.conf.melt.rep.2.df$expression
+design.rep.2.df <- as.data.frame(loxP7.score.high.conf.melt.rep.2.df %>% dplyr::select(R4A, R4B, R5A, R5B, R5C, R5D))
+
+# Select models
+
+log.norm.rep.1 <- deOptim.mod(response = expression.rep.1, design.mat = design.rep.1.df, ll.fun=logistic.model, parms = runif(9), lower = c(rep(-50, 8), 10^-3), upper = 200, error.mod="gaussian", refine=TRUE)
+pred.log.norm.rep.1 <- logistic.predict(design.mat = design.rep.1.df, x = log.norm.rep.1$par)
+pvr.plot(pred.log.norm.rep.1$expression, expression.rep.1, loxP7.score.high.conf.melt.rep.1.df$genotype)
+plot.model(model = log.norm.rep.1, observed = pred.log.norm.rep.1$expression, design.mat = design.rep.1.df, val.fun = logistic.val, scale= log.norm$par[8], error.type="gaussian")
+
+log.norm.rep.2 <- deOptim.mod(response = expression.rep.2, design.mat = design.rep.2.df, ll.fun=logistic.model, parms = runif(9), lower = c(rep(-50, 8), 10^-3), upper = 200, error.mod="gaussian", refine=TRUE)
+pred.log.norm.rep.2 <- logistic.predict(design.mat = design.rep.2.df, x = log.norm.rep.2$par)
+pvr.plot(pred.log.norm.rep.2$expression, expression.rep.2, loxP7.score.high.conf.melt.rep.2.df$genotype)
+plot.model(model = log.norm.rep.2, observed = pred.log.norm.rep.2$expression, design.mat = design.rep.2.df, val.fun = logistic.val, scale= log.norm$par[8], error.type="gaussian")
+
+# Extract enhancer contributions
+
+total.var.explained.rep.1 <- var(pred.log.norm.rep.1$expression) 
+coeff.rep.1 <- log.norm.rep.1$par[2:7]
+contributions.rep.1 <- design.rep.1.df * coeff.rep.1[col(design.rep.1.df)]
+var.contributions.rep.1 <- apply(contributions.rep.1, 2, var)
+fraction.contributions.rep.1 <- var.contributions.rep.1 / total.var.explained.rep.1
+relative.fraction.contributions.rep.1 <- (fraction.contributions.rep.1 + min(fraction.contributions.rep.1)) / sum(fraction.contributions.rep.1 + min(fraction.contributions.rep.1))
+
+total.var.explained.rep.2 <- var(pred.log.norm.rep.2$expression) 
+coeff.rep.2 <- log.norm.rep.2$par[2:7]
+contributions.rep.2 <- design.rep.2.df * coeff.rep.2[col(design.rep.2.df)]
+var.contributions.rep.2 <- apply(contributions.rep.2, 2, var)
+fraction.contributions.rep.2 <- var.contributions.rep.2 / total.var.explained.rep.2
+relative.fraction.contributions.rep.2 <- (fraction.contributions.rep.2 + min(fraction.contributions.rep.2)) / sum(fraction.contributions.rep.2 + min(fraction.contributions.rep.2))
+
+rep <- c("rep.1", "rep.2")
+relative.contribution.df <- tibble(domain = names(relative.fraction.contributions.rep.1),
+                                                    rep.1 = relative.fraction.contributions.rep.1,
+                                                    rep.2 = relative.fraction.contributions.rep.2) %>% 
+  mutate(mean = rowMeans(.[rep]), sd = rowSds(as.matrix(.[rep])))
+
+relative.contribution.plot <- relative.contribution.df %>% drop_na() %>% 
+  ggplot() +
+  geom_bar(aes(x=domain, y=mean, fill = domain), stat = "summary", col = "black") +
+  geom_errorbar(aes(x=domain, ymin=mean-sd, ymax=mean+sd)) +
+  ylab("Relative contribution\n[fraction of variance explained]") +
+  scale_fill_manual(values=c(wes_palette("Zissou1", 6, type = "continuous"))) +
+  geom_hline(yintercept=0, linetype="dashed") +
+  theme_bw() + theme(aspect.ratio=1, strip.background = element_blank(), panel.grid.minor = element_blank(), axis.title.x=element_blank(), axis.text.x = element_text(angle = 45, vjust = 1, hjust=1), legend.position="none")
+relative.contribution.plot
+
+pdf("/lustre/scratch126/gengen/projects/escramble/Notebook/Rplots/OTX2/OTX2.loxP7.linear.models.feature.contribution.pdf", width=4, height=4, useDingbats=FALSE)
+relative.contribution.plot
+dev.off()
+```
+
+## Domain interactions
+
+Previous models supports R5B as the main regulator of OTX2 activity
+
+We then test the interaction of each parameter with R5B [individually and together]
+Test linear model with log-normal error
+
+```{r, eval = F}
+# R
+
+# Define rescale function
+rescale_0_100 <- function(x) {
+  (x - min(x)) / (max(x) - min(x)) * 100
+}
+
+# R4A
+
+design.R4A.R5B.interaction.df <- design.df %>% mutate(R4A_R5B = R4A * R5B)
+dim.model <- ncol(design.R4A.R5B.interaction.df)+3
+log.norm.R4A.R5B <- deOptim.mod(response = expression, design.mat = design.R4A.R5B.interaction.df, ll.fun = logistic.model, parms = runif(dim.model), lower = c(rep(-50, dim.model-1), 10^-3), upper = 200, error.mod = "gaussian", refine = TRUE)
+pred.log.norm.R4A.R5B <- linear.predict(design.mat = design.R4A.R5B.interaction.df, x = log.norm.R4A.R5B$par) %>% as.data.frame() %>% 
+  mutate(expression = rescale_0_100(expression))
+pvr.plot(pred.log.norm.R4A.R5B$expression, expression, loxP7.score.high.conf.melt.df$genotype)
+R4A.bic <- bic(linear.norm,nrow(design.df)) - bic(log.norm.R4A.R5B,nrow(design.R4A.R5B.interaction.df))
+
+# R4B
+
+design.R4B.R5B.interaction.df <- design.df %>% mutate(R4B_R5B = R4B * R5B)
+dim.model <- ncol(design.R4B.R5B.interaction.df)+3
+log.norm.R4B.R5B <- deOptim.mod(response = expression, design.mat = design.R4B.R5B.interaction.df, ll.fun = logistic.model, parms = runif(dim.model), lower = c(rep(-50, dim.model-1), 10^-3), upper = 200, error.mod = "gaussian", refine = TRUE)
+pred.log.norm.R4B.R5B <- linear.predict(design.mat = design.R4B.R5B.interaction.df, x = log.norm.R4B.R5B$par) %>% as.data.frame() %>% 
+  mutate(expression = rescale_0_100(expression))
+pvr.plot(pred.log.norm.R4B.R5B$expression, expression, loxP7.score.high.conf.melt.df$genotype)
+R4B.bic <- bic(linear.norm,nrow(design.df)) - bic(log.norm.R4B.R5B,nrow(design.R4B.R5B.interaction.df))
+saveRDS(pred.log.norm.R4B.R5B, "./007_OTX2_loxP7_architectures_analysis/rds/pred.log.norm.R4B.R5B.rds")
+
+# R5A
+
+design.R5A.R5B.interaction.df <- design.df %>% mutate(R5A_R5B = R5A * R5B)
+dim.model <- ncol(design.R5A.R5B.interaction.df)+3
+log.norm.R5A.R5B <- deOptim.mod(response = expression, design.mat = design.R5A.R5B.interaction.df, ll.fun = logistic.model, parms = runif(dim.model), lower = c(rep(-50, dim.model-1), 10^-3), upper = 200, error.mod = "gaussian", refine = TRUE)
+pred.log.norm.R5A.R5B <- linear.predict(design.mat = design.R5A.R5B.interaction.df, x = log.norm.R5A.R5B$par) %>% as.data.frame() %>% 
+  mutate(expression = rescale_0_100(expression))
+pvr.plot(pred.log.norm.R5A.R5B$expression, expression, loxP7.score.high.conf.melt.df$genotype)
+R5A.bic <- bic(linear.norm,nrow(design.df)) - bic(log.norm.R5A.R5B,nrow(design.R5A.R5B.interaction.df))
+
+# R5C
+
+design.R5C.R5B.interaction.df <- design.df %>% mutate(R5C_R5B = R5C * R5B)
+dim.model <- ncol(design.R5C.R5B.interaction.df)+3
+log.norm.R5C.R5B <- deOptim.mod(response = expression, design.mat = design.R5C.R5B.interaction.df, ll.fun = logistic.model, parms = runif(dim.model), lower = c(rep(-50, dim.model-1), 10^-3), upper = 200, error.mod = "gaussian", refine = TRUE)
+pred.log.norm.R5C.R5B <- linear.predict(design.mat = design.R5C.R5B.interaction.df, x = log.norm.R5C.R5B$par) %>% as.data.frame() %>% 
+  mutate(expression = rescale_0_100(expression))
+pvr.plot(pred.log.norm.R5C.R5B$expression, expression, loxP7.score.high.conf.melt.df$genotype)
+R5C.bic <- bic(linear.norm,nrow(design.df)) - bic(log.norm.R5C.R5B,nrow(design.R5C.R5B.interaction.df))
+
+# R5D
+
+design.R5D.R5B.interaction.df <- design.df %>% mutate(R5D_R5B = R5D * R5B)
+dim.model <- ncol(design.R5D.R5B.interaction.df)+3
+log.norm.R5D.R5B <- deOptim.mod(response = expression, design.mat = design.R5D.R5B.interaction.df, ll.fun = logistic.model, parms = runif(dim.model), lower = c(rep(-50, dim.model-1), 10^-3), upper = 200, error.mod = "gaussian", refine = TRUE)
+pred.log.norm.R5D.R5B <- linear.predict(design.mat = design.R5D.R5B.interaction.df, x = log.norm.R5D.R5B$par) %>% as.data.frame() %>% 
+  mutate(expression = rescale_0_100(expression))
+pvr.plot(pred.log.norm.R5D.R5B$expression, expression, loxP7.score.high.conf.melt.df$genotype)
+R5D.bic <- bic(linear.norm,nrow(design.df)) - bic(log.norm.R5D.R5B,nrow(design.R5D.R5B.interaction.df))
+
+# R4A_R4B
+
+design.R4A_R4B.R5B.interaction.df <- design.df %>% mutate(R4A_R5B = R4A * R5B, R5D_R5B = R5D * R5B)
+dim.model <- ncol(design.R4A_R4B.R5B.interaction.df)+3
+log.norm.R4A_R4B.R5B <- deOptim.mod(response = expression, design.mat = design.R4A_R4B.R5B.interaction.df, ll.fun = logistic.model, parms = runif(dim.model), lower = c(rep(-200, dim.model-1), 10^-2), upper = 200, error.mod = "gaussian", refine = TRUE)
+pred.log.norm.R4A_R4B.R5B <- linear.predict(design.mat = design.R4A_R4B.R5B.interaction.df, x = log.norm.R4A_R4B.R5B$par) %>% as.data.frame() %>% 
+  mutate(expression = rescale_0_100(expression))
+pvr.plot(pred.log.norm.R4A_R4B.R5B$expression, expression, loxP7.score.high.conf.melt.df$genotype)
+R4A_R4B.bic <- bic(linear.norm,nrow(design.df)) - bic(log.norm.R4A_R4B.R5B,nrow(design.R4A_R4B.R5B.interaction.df))
+
+# R4A_R5A
+
+design.R4A_R5A.R5B.interaction.df <- design.df %>% mutate(R4A_R5B = R4A * R5B, R5D_R5B = R5D * R5B)
+dim.model <- ncol(design.R4A_R5A.R5B.interaction.df)+3
+log.norm.R4A_R5A.R5B <- deOptim.mod(response = expression, design.mat = design.R4A_R5A.R5B.interaction.df, ll.fun = logistic.model, parms = runif(dim.model), lower = c(rep(-200, dim.model-1), 10^-2), upper = 200, error.mod = "gaussian", refine = TRUE)
+pred.log.norm.R4A_R5A.R5B <- linear.predict(design.mat = design.R4A_R5A.R5B.interaction.df, x = log.norm.R4A_R5A.R5B$par) %>% as.data.frame() %>% 
+  mutate(expression = rescale_0_100(expression))
+pvr.plot(pred.log.norm.R4A_R5A.R5B$expression, expression, loxP7.score.high.conf.melt.df$genotype)
+R4A_R5A.bic <- bic(linear.norm,nrow(design.df)) - bic(log.norm.R4A_R5A.R5B,nrow(design.R4A_R5A.R5B.interaction.df))
+
+# R4A_R5C
+
+design.R4A_R5C.R5B.interaction.df <- design.df %>% mutate(R4A_R5B = R4A * R5B, R5D_R5B = R5D * R5B)
+dim.model <- ncol(design.R4A_R5C.R5B.interaction.df)+3
+log.norm.R4A_R5C.R5B <- deOptim.mod(response = expression, design.mat = design.R4A_R5C.R5B.interaction.df, ll.fun = logistic.model, parms = runif(dim.model), lower = c(rep(-200, dim.model-1), 10^-2), upper = 200, error.mod = "gaussian", refine = TRUE)
+pred.log.norm.R4A_R5C.R5B <- linear.predict(design.mat = design.R4A_R5C.R5B.interaction.df, x = log.norm.R4A_R5C.R5B$par) %>% as.data.frame() %>% 
+  mutate(expression = rescale_0_100(expression))
+pvr.plot(pred.log.norm.R4A_R5C.R5B$expression, expression, loxP7.score.high.conf.melt.df$genotype)
+R4A_R5C.bic <- bic(linear.norm,nrow(design.df)) - bic(log.norm.R4A_R5C.R5B,nrow(design.R4A_R5C.R5B.interaction.df))
+
+# R4A_R5D
+
+design.R4A_R5D.R5B.interaction.df <- design.df %>% mutate(R4A_R5B = R4A * R5B, R5D_R5B = R5D * R5B)
+dim.model <- ncol(design.R4A_R5D.R5B.interaction.df)+3
+log.norm.R4A_R5D.R5B <- deOptim.mod(response = expression, design.mat = design.R4A_R5D.R5B.interaction.df, ll.fun = logistic.model, parms = runif(dim.model), lower = c(rep(-200, dim.model-1), 10^-2), upper = 200, error.mod = "gaussian", refine = TRUE)
+pred.log.norm.R4A_R5D.R5B <- linear.predict(design.mat = design.R4A_R5D.R5B.interaction.df, x = log.norm.R4A_R5D.R5B$par) %>% as.data.frame() %>% 
+  mutate(expression = rescale_0_100(expression))
+pvr.plot(pred.log.norm.R4A_R5D.R5B$expression, expression, loxP7.score.high.conf.melt.df$genotype)
+R4A_R5D.bic <- bic(linear.norm,nrow(design.df)) - bic(log.norm.R4A_R5D.R5B,nrow(design.R4A_R5D.R5B.interaction.df))
+
+# R4B_R5A
+
+design.R4B_R5A.R5B.interaction.df <- design.df %>% mutate(R4B_R5B = R4B * R5B, R5D_R5B = R5D * R5B)
+dim.model <- ncol(design.R4B_R5A.R5B.interaction.df)+3
+log.norm.R4B_R5A.R5B <- deOptim.mod(response = expression, design.mat = design.R4B_R5A.R5B.interaction.df, ll.fun = logistic.model, parms = runif(dim.model), lower = c(rep(-200, dim.model-1), 10^-2), upper = 200, error.mod = "gaussian", refine = TRUE)
+pred.log.norm.R4B_R5A.R5B <- linear.predict(design.mat = design.R4B_R5A.R5B.interaction.df, x = log.norm.R4B_R5A.R5B$par) %>% as.data.frame() %>% 
+  mutate(expression = rescale_0_100(expression))
+pvr.plot(pred.log.norm.R4B_R5A.R5B$expression, expression, loxP7.score.high.conf.melt.df$genotype)
+R4B_R5A.bic <- bic(linear.norm,nrow(design.df)) - bic(log.norm.R4B_R5A.R5B,nrow(design.R4B_R5A.R5B.interaction.df))
+
+# R4B_R5C
+
+design.R4B_R5C.R5B.interaction.df <- design.df %>% mutate(R4B_R5B = R4B * R5B, R5D_R5B = R5D * R5B)
+dim.model <- ncol(design.R4B_R5C.R5B.interaction.df)+3
+log.norm.R4B_R5C.R5B <- deOptim.mod(response = expression, design.mat = design.R4B_R5C.R5B.interaction.df, ll.fun = logistic.model, parms = runif(dim.model), lower = c(rep(-200, dim.model-1), 10^-2), upper = 200, error.mod = "gaussian", refine = TRUE)
+pred.log.norm.R4B_R5C.R5B <- linear.predict(design.mat = design.R4B_R5C.R5B.interaction.df, x = log.norm.R4B_R5C.R5B$par) %>% as.data.frame() %>% 
+  mutate(expression = rescale_0_100(expression))
+pvr.plot(pred.log.norm.R4B_R5C.R5B$expression, expression, loxP7.score.high.conf.melt.df$genotype)
+R4B_R5C.bic <- bic(linear.norm,nrow(design.df)) - bic(log.norm.R4B_R5C.R5B,nrow(design.R4B_R5C.R5B.interaction.df))
+
+# R4B_R5D
+
+design.R4B_R5D.R5B.interaction.df <- design.df %>% mutate(R4B_R5B = R4B * R5B, R5D_R5B = R5D * R5B)
+dim.model <- ncol(design.R4B_R5D.R5B.interaction.df)+3
+log.norm.R4B_R5D.R5B <- deOptim.mod(response = expression, design.mat = design.R4B_R5D.R5B.interaction.df, ll.fun = logistic.model, parms = runif(dim.model), lower = c(rep(-200, dim.model-1), 10^-2), upper = 200, error.mod = "gaussian", refine = TRUE)
+pred.log.norm.R4B_R5D.R5B <- linear.predict(design.mat = design.R4B_R5D.R5B.interaction.df, x = log.norm.R4B_R5D.R5B$par) %>% as.data.frame() %>% 
+  mutate(expression = rescale_0_100(expression))
+pvr.plot(pred.log.norm.R4B_R5D.R5B$expression, expression, loxP7.score.high.conf.melt.df$genotype)
+R4B_R5D.bic <- bic(linear.norm,nrow(design.df)) - bic(log.norm.R4B_R5D.R5B,nrow(design.R4B_R5D.R5B.interaction.df))
+
+# R5A_R5C
+
+design.R5A_R5C.R5B.interaction.df <- design.df %>% mutate(R5A_R5B = R5A * R5B, R5D_R5B = R5D * R5B)
+dim.model <- ncol(design.R5A_R5C.R5B.interaction.df)+3
+log.norm.R5A_R5C.R5B <- deOptim.mod(response = expression, design.mat = design.R5A_R5C.R5B.interaction.df, ll.fun = logistic.model, parms = runif(dim.model), lower = c(rep(-200, dim.model-1), 10^-2), upper = 200, error.mod = "gaussian", refine = TRUE)
+pred.log.norm.R5A_R5C.R5B <- linear.predict(design.mat = design.R5A_R5C.R5B.interaction.df, x = log.norm.R5A_R5C.R5B$par) %>% as.data.frame() %>% 
+  mutate(expression = rescale_0_100(expression))
+pvr.plot(pred.log.norm.R5A_R5C.R5B$expression, expression, loxP7.score.high.conf.melt.df$genotype)
+R5A_R5C.bic <- bic(linear.norm,nrow(design.df)) - bic(log.norm.R5A_R5C.R5B,nrow(design.R5A_R5C.R5B.interaction.df))
+
+# R5A_R5D
+
+design.R5A_R5D.R5B.interaction.df <- design.df %>% mutate(R5A_R5B = R5A * R5B, R5D_R5B = R5D * R5B)
+dim.model <- ncol(design.R5A_R5D.R5B.interaction.df)+3
+log.norm.R5A_R5D.R5B <- deOptim.mod(response = expression, design.mat = design.R5A_R5D.R5B.interaction.df, ll.fun = logistic.model, parms = runif(dim.model), lower = c(rep(-200, dim.model-1), 10^-2), upper = 200, error.mod = "gaussian", refine = TRUE)
+pred.log.norm.R5A_R5D.R5B <- linear.predict(design.mat = design.R5A_R5D.R5B.interaction.df, x = log.norm.R5A_R5D.R5B$par) %>% as.data.frame() %>% 
+  mutate(expression = rescale_0_100(expression))
+pvr.plot(pred.log.norm.R5A_R5D.R5B$expression, expression, loxP7.score.high.conf.melt.df$genotype)
+R5A_R5D.bic <- bic(linear.norm,nrow(design.df)) - bic(log.norm.R5A_R5D.R5B,nrow(design.R5A_R5D.R5B.interaction.df))
+
+# R5C_R5D
+
+design.R5C_R5D.R5B.interaction.df <- design.df %>% mutate(R5A_R5B = R5A * R5B, R5D_R5B = R5D * R5B)
+dim.model <- ncol(design.R5C_R5D.R5B.interaction.df)+3
+log.norm.R5C_R5D.R5B <- deOptim.mod(response = expression, design.mat = design.R5C_R5D.R5B.interaction.df, ll.fun = logistic.model, parms = runif(dim.model), lower = c(rep(-200, dim.model-1), 10^-2), upper = 200, error.mod = "gaussian", refine = TRUE)
+pred.log.norm.R5C_R5D.R5B <- linear.predict(design.mat = design.R5C_R5D.R5B.interaction.df, x = log.norm.R5C_R5D.R5B$par) %>% as.data.frame() %>% 
+  mutate(expression = rescale_0_100(expression))
+pvr.plot(pred.log.norm.R5C_R5D.R5B$expression, expression, loxP7.score.high.conf.melt.df$genotype)
+R5C_R5D.bic <- bic(linear.norm,nrow(design.df)) - bic(log.norm.R5C_R5D.R5B,nrow(design.R5C_R5D.R5B.interaction.df))
+
+# R4A_R4B_R5A
+
+design.R4A_R4B_R5A.R5B.interaction.df <- design.df %>% mutate(R4A_R5B = R4A * R5B, R4B_R5B = R4B * R5B, R5A_R5B = R5A * R5B)
+dim.model <- ncol(design.R4A_R4B_R5A.R5B.interaction.df)+3
+log.norm.R4A_R4B_R5A.R5B <- deOptim.mod(response = expression, design.mat = design.R4A_R4B_R5A.R5B.interaction.df, ll.fun = logistic.model, parms = runif(dim.model), lower = c(rep(-200, dim.model-1), 10^-2), upper = 200, error.mod = "gaussian", refine = TRUE)
+pred.log.norm.R4A_R4B_R5A.R5B <- linear.predict(design.mat = design.R4A_R4B_R5A.R5B.interaction.df, x = log.norm.R4A_R4B_R5A.R5B$par) %>% as.data.frame() %>% 
+  mutate(expression = rescale_0_100(expression))
+pvr.plot(pred.log.norm.R4A_R4B_R5A.R5B$expression, expression, loxP7.score.high.conf.melt.df$genotype)
+R4A_R4B_R5A.bic <- bic(linear.norm,nrow(design.df)) - bic(log.norm.R4A_R4B_R5A.R5B,nrow(design.R4A_R4B_R5A.R5B.interaction.df))
+
+# R4A_R4B_R5C
+
+design.R4A_R4B_R5C.R5B.interaction.df <- design.df %>% mutate(R4A_R5B = R4A * R5B, R4B_R5B = R4B * R5B, R5C_R5B = R5C * R5B)
+dim.model <- ncol(design.R4A_R4B_R5C.R5B.interaction.df)+3
+log.norm.R4A_R4B_R5C.R5B <- deOptim.mod(response = expression, design.mat = design.R4A_R4B_R5C.R5B.interaction.df, ll.fun = logistic.model, parms = runif(dim.model), lower = c(rep(-200, dim.model-1), 10^-2), upper = 200, error.mod = "gaussian", refine = TRUE)
+pred.log.norm.R4A_R4B_R5C.R5B <- linear.predict(design.mat = design.R4A_R4B_R5C.R5B.interaction.df, x = log.norm.R4A_R4B_R5C.R5B$par) %>% as.data.frame() %>% 
+  mutate(expression = rescale_0_100(expression))
+pvr.plot(pred.log.norm.R4A_R4B_R5C.R5B$expression, expression, loxP7.score.high.conf.melt.df$genotype)
+R4A_R4B_R5C.bic <- bic(linear.norm,nrow(design.df)) - bic(log.norm.R4A_R4B_R5C.R5B,nrow(design.R4A_R4B_R5C.R5B.interaction.df))
+
+# R4A_R4B_R5D
+
+design.R4A_R4B_R5D.R5B.interaction.df <- design.df %>% mutate(R4A_R5B = R4A * R5B, R4B_R5B = R4B * R5B, R5D_R5B = R5D * R5B)
+dim.model <- ncol(design.R4A_R4B_R5D.R5B.interaction.df)+3
+log.norm.R4A_R4B_R5D.R5B <- deOptim.mod(response = expression, design.mat = design.R4A_R4B_R5D.R5B.interaction.df, ll.fun = logistic.model, parms = runif(dim.model), lower = c(rep(-200, dim.model-1), 10^-2), upper = 200, error.mod = "gaussian", refine = TRUE)
+pred.log.norm.R4A_R4B_R5D.R5B <- linear.predict(design.mat = design.R4A_R4B_R5D.R5B.interaction.df, x = log.norm.R4A_R4B_R5D.R5B$par) %>% as.data.frame() %>% 
+  mutate(expression = rescale_0_100(expression))
+pvr.plot(pred.log.norm.R4A_R4B_R5D.R5B$expression, expression, loxP7.score.high.conf.melt.df$genotype)
+R4A_R4B_R5D.bic <- bic(linear.norm,nrow(design.df)) - bic(log.norm.R4A_R4B_R5D.R5B,nrow(design.R4A_R4B_R5D.R5B.interaction.df))
+
+# R4B_R5A_R5C
+
+design.R4B_R5A_R5C.R5B.interaction.df <- design.df %>% mutate(R4B_R5B = R4B * R5B, R5A_R5B = R5A * R5B, R5C_R5B = R5C * R5B)
+dim.model <- ncol(design.R4B_R5A_R5C.R5B.interaction.df)+3
+log.norm.R4B_R5A_R5C.R5B <- deOptim.mod(response = expression, design.mat = design.R4B_R5A_R5C.R5B.interaction.df, ll.fun = logistic.model, parms = runif(dim.model), lower = c(rep(-200, dim.model-1), 10^-2), upper = 200, error.mod = "gaussian", refine = TRUE)
+pred.log.norm.R4B_R5A_R5C.R5B <- linear.predict(design.mat = design.R4B_R5A_R5C.R5B.interaction.df, x = log.norm.R4B_R5A_R5C.R5B$par) %>% as.data.frame() %>% 
+  mutate(expression = rescale_0_100(expression))
+pvr.plot(pred.log.norm.R4B_R5A_R5C.R5B$expression, expression, loxP7.score.high.conf.melt.df$genotype)
+R4B_R5A_R5C.bic <- bic(linear.norm,nrow(design.df)) - bic(log.norm.R4B_R5A_R5C.R5B,nrow(design.R4B_R5A_R5C.R5B.interaction.df))
+
+# R4B_R5A_R5D
+
+design.R4B_R5A_R5D.R5B.interaction.df <- design.df %>% mutate(R4B_R5B = R4B * R5B, R5A_R5B = R5A * R5B, R5D_R5B = R5D * R5B)
+dim.model <- ncol(design.R4B_R5A_R5D.R5B.interaction.df)+3
+log.norm.R4B_R5A_R5D.R5B <- deOptim.mod(response = expression, design.mat = design.R4B_R5A_R5D.R5B.interaction.df, ll.fun = logistic.model, parms = runif(dim.model), lower = c(rep(-200, dim.model-1), 10^-2), upper = 200, error.mod = "gaussian", refine = TRUE)
+pred.log.norm.R4B_R5A_R5D.R5B <- linear.predict(design.mat = design.R4B_R5A_R5D.R5B.interaction.df, x = log.norm.R4B_R5A_R5D.R5B$par) %>% as.data.frame() %>% 
+  mutate(expression = rescale_0_100(expression))
+pvr.plot(pred.log.norm.R4B_R5A_R5D.R5B$expression, expression, loxP7.score.high.conf.melt.df$genotype)
+R4B_R5A_R5D.bic <- bic(linear.norm,nrow(design.df)) - bic(log.norm.R4B_R5A_R5D.R5B,nrow(design.R4B_R5A_R5D.R5B.interaction.df))
+
+# R5A_R5C_R5D
+
+design.R5A_R5C_R5D.R5B.interaction.df <- design.df %>% mutate(R4B_R5B = R4B * R5B, R5A_R5B = R5A * R5B, R5D_R5B = R5D * R5B)
+dim.model <- ncol(design.R5A_R5C_R5D.R5B.interaction.df)+3
+log.norm.R5A_R5C_R5D.R5B <- deOptim.mod(response = expression, design.mat = design.R5A_R5C_R5D.R5B.interaction.df, ll.fun = logistic.model, parms = runif(dim.model), lower = c(rep(-200, dim.model-1), 10^-2), upper = 200, error.mod = "gaussian", refine = TRUE)
+pred.log.norm.R5A_R5C_R5D.R5B <- linear.predict(design.mat = design.R5A_R5C_R5D.R5B.interaction.df, x = log.norm.R5A_R5C_R5D.R5B$par) %>% as.data.frame() %>% 
+  mutate(expression = rescale_0_100(expression))
+pvr.plot(pred.log.norm.R5A_R5C_R5D.R5B$expression, expression, loxP7.score.high.conf.melt.df$genotype)
+R5A_R5C_R5D.bic <- bic(linear.norm,nrow(design.df)) - bic(log.norm.R5A_R5C_R5D.R5B,nrow(design.R5A_R5C_R5D.R5B.interaction.df))
+
+# R4A_R4B_R5A_R5C
+
+design.R4A_R4B_R5A_R5C.R5B.interaction.df <- design.df %>% mutate(R4A_R5B = R4A * R5B, R4B_R5B = R4B * R5B, R5A_R5B = R5A * R5B, R5C_R5B = R5C * R5B)
+dim.model <- ncol(design.R4A_R4B_R5A_R5C.R5B.interaction.df)+3
+log.norm.R4A_R4B_R5A_R5C.R5B <- deOptim.mod(response = expression, design.mat = design.R4A_R4B_R5A_R5C.R5B.interaction.df, ll.fun = logistic.model, parms = runif(dim.model), lower = c(rep(-200, dim.model-1), 10^-2), upper = 200, error.mod = "gaussian", refine = TRUE)
+pred.log.norm.R4A_R4B_R5A_R5C.R5B <- linear.predict(design.mat = design.R4A_R4B_R5A_R5C.R5B.interaction.df, x = log.norm.R4A_R4B_R5A_R5C.R5B$par) %>% as.data.frame() %>% 
+  mutate(expression = rescale_0_100(expression))
+pvr.plot(pred.log.norm.R4A_R4B_R5A_R5C.R5B$expression, expression, loxP7.score.high.conf.melt.df$genotype)
+R4A_R4B_R5A_R5C.bic <- bic(linear.norm,nrow(design.df)) - bic(log.norm.R4A_R4B_R5A_R5C.R5B,nrow(design.R4A_R4B_R5A_R5C.R5B.interaction.df))
+
+# R4A_R4B_R5A_R5D
+
+design.R4A_R4B_R5A_R5D.R5B.interaction.df <- design.df %>% mutate(R4A_R5B = R4A * R5B, R4B_R5B = R4B * R5B, R5A_R5B = R5A * R5B, R5D_R5B = R5D * R5B)
+dim.model <- ncol(design.R4A_R4B_R5A_R5D.R5B.interaction.df)+3
+log.norm.R4A_R4B_R5A_R5D.R5B <- deOptim.mod(response = expression, design.mat = design.R4A_R4B_R5A_R5D.R5B.interaction.df, ll.fun = logistic.model, parms = runif(dim.model), lower = c(rep(-200, dim.model-1), 10^-2), upper = 200, error.mod = "gaussian", refine = TRUE)
+pred.log.norm.R4A_R4B_R5A_R5D.R5B <- linear.predict(design.mat = design.R4A_R4B_R5A_R5D.R5B.interaction.df, x = log.norm.R4A_R4B_R5A_R5D.R5B$par) %>% as.data.frame() %>% 
+  mutate(expression = rescale_0_100(expression))
+pvr.plot(pred.log.norm.R4A_R4B_R5A_R5D.R5B$expression, expression, loxP7.score.high.conf.melt.df$genotype)
+R4A_R4B_R5A_R5D.bic <- bic(linear.norm,nrow(design.df)) - bic(log.norm.R4A_R4B_R5A_R5D.R5B,nrow(design.R4A_R4B_R5A_R5D.R5B.interaction.df))
+
+# all
+
+design.all.R5B.interaction.df <- design.df %>% mutate(R4A_R5B = R4A * R5B, R4B_R5B = R4B * R5B, R5A_R5B = R5A * R5B, R5C_R5B = R5C * R5B, R5D_R5B = R5D * R5B)
+dim.model <- ncol(design.all.R5B.interaction.df)+3
+log.norm.all.R5B <- deOptim.mod(response = expression, design.mat = design.all.R5B.interaction.df, ll.fun = logistic.model, parms = runif(dim.model), lower = c(rep(-200, dim.model-1), 10^-2), upper = 200, error.mod = "gaussian", refine = TRUE)
+pred.log.norm.all.R5B <- linear.predict(design.mat = design.all.R5B.interaction.df, x = log.norm.all.R5B$par) %>% as.data.frame() %>% 
+  mutate(expression = rescale_0_100(expression))
+pvr.plot(pred.log.norm.all.R5B$expression, expression, loxP7.score.high.conf.melt.df$genotype)
+all.bic <- bic(linear.norm,nrow(design.df)) - bic(log.norm.all.R5B,nrow(design.all.R5B.interaction.df))
+
+# Combine all information and draw conclusion
+
+interaction.BIC.df <- cbind.data.frame(domain = c("none", "R4A", "R4B", "R5A", "R5C", "R5D", "R4A:R4B", "R4A:R5A", "R4A:R5C", "R4A:R5D", "R4B:R5A", "R4B:R5C", "R4B:R5D", "R5A:R5C", "R5A:R5D", "R5C:R5D", "R4A:R4B:R5A", "R4A:R4B:R5C", "R4A:R4B:R5D", "R4B:R5A:R5C", "R4B:R5A:R5D", "R5A:R5C:R5D", "R4A:R4B:R5A:R5C", "R4A:R4B:R5A:R5D", "R4A:R4B:R4B:R5A:R5D"),
+                                       BIC = c(0.2, R4A.bic, R4B.bic, R5A.bic, R5C.bic, R5D.bic, R4A_R4B.bic, R4A_R5A.bic, R4A_R5C.bic, R4A_R5D.bic, R4B_R5A.bic, R4B_R5C.bic, R4B_R5D.bic, R5A_R5C.bic, R5A_R5D.bic, R5C_R5D.bic, R4A_R4B_R5A.bic, R4A_R4B_R5C.bic, R4A_R4B_R5D.bic, R4B_R5A_R5C.bic, R4B_R5A_R5D.bic, R5A_R5C_R5D.bic, R4A_R4B_R5A_R5C.bic, R4A_R4B_R5A_R5D.bic, all.bic))
+saveRDS(interaction.BIC.df, "./Notebook/007_OTX2_loxP7_architectures_analysis/rds/interaction.BIC.df.rds")
+
+BIC.interaction.plot <- interaction.BIC.df %>% 
+  mutate(DOM = fct_relevel(domain, "none", "R4A", "R4B", "R5A", "R5C", "R5D", "R4A:R4B", "R4A:R5A", "R4A:R5C", "R4A:R5D", "R4B:R5A", "R4B:R5C", "R4B:R5D", "R5A:R5C", "R5A:R5D", "R5C:R5D", "R4A:R4B:R5A", "R4A:R4B:R5C", "R4A:R4B:R5D", "R4B:R5A:R5C", "R4B:R5A:R5D", "R5A:R5C:R5D", "R4A:R4B:R5A:R5C", "R4A:R4B:R5A:R5D", "R4A:R4B:R4B:R5A:R5D")) %>%
+  ggplot(aes(x=DOM, y=BIC)) +
+  geom_bar(stat = "identity", fill = "#EE2524")+
+  theme_bw(base_size = 12)+
+  xlab("Models")+
+  ylab("Relative BIC")+
+  theme_bw() + theme(aspect.ratio=0.5, panel.grid.minor = element_blank(),axis.title.x=element_blank(),axis.text.x = element_text(angle = 45, vjust = 1, hjust=1))
+BIC.interaction.plot
+
+# Prepare plot reporting the best model
+
+best.model.plot.df <- cbind.data.frame(c=as.factor(loxP7.score.high.conf.melt.df$genotype),p=as.numeric(pred.log.norm.R4B.R5B$expression),o=as.numeric(expression))
+best.model.plot.means <- best.model.plot.df %>% group_by(c) %>% summarise(p = mean(p), o=mean(o))
+
+best.model.plot <- ggplot()+
+  geom_point(data=best.model.plot.means,aes(x=p,y=o),color="#EE2524",size=3)+
+  geom_point(data=best.model.plot.df,aes(x=p,y=o))+
+  xlim(0,100) + ylim(0,100) +
+  geom_abline(slope=1) +
+  ylab("Observed [scaled]") +
+  xlab("Predicted [scaled]") + ggtitle("Logistic/normal - R4B:R5B interaction") +
+  theme_bw() + theme(aspect.ratio=1, panel.grid.minor = element_blank())
+best.model.plot
+
+# Save plots
+
+pdf("/lustre/scratch126/gengen/projects/escramble/Notebook/Rplots/OTX2/OTX2.loxP7.linear.models.interaction.pdf", width=12, height=4, useDingbats=FALSE)
+ggarrange(BIC.interaction.plot, best.model.plot, nrow = 1)
+dev.off()
+```
+
+# eScramble characterisation
+
+These chunks reports the features of the scramble workflow
+
+## Resampling
+
+Test the number of detected variant from resampling sequencing read
+This is a simulation as we just consider the theoritical number of reads from in silico resampling
+
+```{r, eval = F}
+# R
+
+# Load results
+architecture.134.score.df <- read.csv("/lustre/scratch126/gengen/projects/escramble/Data/AN_data/134_architectures_scores.csv")
+# 134 architectures
+
+# Reformat
+architecture.134.read.count.df <- architecture.134.score.df %>%
+    mutate(read.count.1 = read_count_very_dim_1+read_count_dim_1+read_count_bright_1+read_count_very_bright_1,
+           read.count.2 = read_count_very_dim_2+read_count_dim_2+read_count_bright_2+read_count_very_bright_2,
+           read.count = read.count.1 + read.count.2) %>% 
+  dplyr::select(genotype = savana_notation_grammar, read.count.1, read.count.2, read.count)
+
+# Add information about all reads that do not show evidences for SV
+# Total number of reads, Rep 1: 10,943,109 reads, Rep 2: 10,181,336 reads, Total: 21,124,445
+# 5,665,154 reads are associated with SVs --> 15,459,291 junk reads 
+
+architecture.134.read.count.df <- rbind(architecture.134.read.count.df, cbind.data.frame(genotype = "junk", read.count = 15459291))
+
+# Create vector for resampling
+
+SV.sampling <- rep(architecture.134.read.count.df$genotype, architecture.134.read.count.df$read.count) # 21,124,445 reads
+
+# Sample
+
+# Define sample sizes
+
+n <- c(1, 3, 11, 37, 122, 405, 1346, 4472, 14860, 49376, 164067, 545159, 1811447, 6019049, 20000000)
+n <- rep(n, 100)
+
+resampling.df <- tibble()
+for (i in n) {
+  print(i)
+  read.count.i <- i
+  samp.i <- sample(SV.sampling, read.count.i)
+  table.i <- as.data.frame(table(samp.i)) %>% filter(samp.i != "junk")
+    SV.count.1.i <- nrow(table.i %>% filter(Freq >= 1))
+    SV.count.10.i <- nrow(table.i %>% filter(Freq >= 10))
+    SV.count.100.i <- nrow(table.i %>% filter(Freq >= 100))
+    SV.count.1000.i <- nrow(table.i %>% filter(Freq >= 1000))
+    SV.count.10000.i <- nrow(table.i %>% filter(Freq >= 10000))
+  summary.df.i <- cbind.data.frame(read.count = read.count.i, SV.occurence = c(1, 10, 100, 1000, 10000), SV.count = c(SV.count.1.i, SV.count.10.i, SV.count.100.i, SV.count.1000.i, SV.count.10000.i))
+  resampling.df <- rbind(resampling.df, summary.df.i)
+}
+saveRDS(resampling.df, "/lustre/scratch126/gengen/projects/escramble/Notebook/007_OTX2_loxP7_architectures_analysis/rds/resampling.df.rds")
+```
+
+Plot
+
+```{r message=FALSE, warning=FALSE, eval = T}
+library(dplyr)
+library(ggplot2)
+library(ggpubr)
+
+resampling.df <- readRDS("/lustre/scratch126/gengen/projects/escramble/Notebook/007_OTX2_loxP7_architectures_analysis/rds/resampling.df.rds")
+
+resampling.plot <- resampling.df %>% mutate(log10.read.count = log10(read.count)) %>% 
+  ggplot(aes(x = log10.read.count, y = SV.count, colour = as.character(SV.occurence))) +
+  geom_smooth(aes(group = as.character(SV.occurence)), span = 3, se = F) +
+  geom_point(aes(x = log10.read.count, y = SV.count), size = 0.25) +
+  geom_point(stat='summary', fun.y=sum, group=1, size = 2) +
+  ylab("Number of detected architectures") + xlab("Sequencing reads [x1e6]") + ylim(0,150) +
+  scale_color_manual("Supporting reads", values = c("#3E54A4", "#3988C2", "#3B9BB3", "#E36826", "#EF4136")) +
+  theme_bw() + theme(aspect.ratio=1, strip.background = element_blank(), panel.grid.minor = element_blank())
+resampling.plot
+```
+
+## Biases
+
+Characterise biases in detecting and quantifying genotypes
+
+A table is manually generated to compute SV length
+
+```{r, eval = F}
+# R
+
+write.table(architecture.134.read.count.df, "./007_OTX2_loxP7_architectures_analysis/loxP7.SV.length.tsv", sep = "\t", col.names = T, row.names = F, quote = F)
+```
+
+Open modified files and analyse
+
+
+```{r message=FALSE, warning=FALSE, eval = T}
+library(dplyr)
+library(ggplot2)
+library(ggpubr)
+library(scales)
+
+# Load data
+architecture.134.read.count.df <- read.csv("./007_OTX2_loxP7_architectures_analysis/loxP7.SV.length.mod.csv")
+
+# Define loxPsym sites coordinates
+loxPsym.coordinates <- c(56884634, 56893129, 56898376, 56901292, 56903183, 56904792, 56907608)
+loxPsym.sorted.coordinates <- loxPsym.coordinates[order(loxPsym.coordinates)]
+loxPsym.coordinates.df <- tibble(sites = c(1:7), pos = loxPsym.sorted.coordinates)
+
+# Compute distances from all loxPsym sites
+loxPsym.sites.dist.df <- expand_grid(sites = c(1:7), sites.2 = c(1:7)) %>% left_join(loxPsym.coordinates.df %>%
+                         dplyr::select(sites, pos.1 = pos)) %>% left_join(loxPsym.coordinates.df %>%
+                         dplyr::select(sites.2 = sites, pos.2 = pos)) %>% mutate(dist = pos.1 - pos.2) %>% filter(dist > 0) %>% arrange(-dist)
+loxPsym.sites.dist.df <- rbind(loxPsym.sites.dist.df, c(sites = 0, sites.2 = 0, pos.1 = 0, pos.2 = 0, dist = 0))
+
+# Compute read length
+architecture.134.read.length.df <- architecture.134.read.count.df %>% 
+  left_join((loxPsym.sites.dist.df %>% dplyr::select(loxpsym.2 = sites, loxpsym.1 = sites.2, dist.1 = dist))) %>% 
+  left_join((loxPsym.sites.dist.df %>% dplyr::select(loxpsym.4 = sites, loxpsym.3 = sites.2, dist.2 = dist))) %>% 
+  mutate(read.length = 23370-(dist.1+dist.2))
+
+# Plot corelation between number of breakpoint and read count
+
+read.lenght.vs.BP.plot <- architecture.134.read.length.df %>% ggplot(aes(x=as.character(BP.count), y=read.count, fill=as.character(BP.count))) +
+  geom_boxplot() +
+  scale_fill_manual("Number of\nbreakpoints", values = c("white", "#3E54A4", "#3988C2", "#3B9BB3", "#E36826", "#EF4136")) +
+  scale_y_continuous(trans='log10', labels = trans_format("log10", math_format(10^.x))) +
+  xlab("Number of breakpoints") + ylab("Read count [log10]") +
+  theme_bw() + theme(aspect.ratio=2, panel.grid.minorr = element_blank(),legend.position = "none")
+read.lenght.vs.BP.plot
+
+# Plot corelation between read length and read count
+
+architecture.134.BP.2.read.length.df <- architecture.134.read.length.df %>% filter(BP.count >= 1 & BP.count <= 2)
+Rho.length <- cor.test(architecture.134.BP.2.read.length.df$read.length, log10(architecture.134.BP.2.read.length.df$read.count))
+
+read.lenght.vs.count.plot <- architecture.134.BP.2.read.length.df %>% ggplot(aes(x=read.length, y=read.count)) +
+  geom_smooth(method = "lm", se = TRUE, size = 0.5, col = "black") +
+  geom_errorbar(aes(ymin = read.count-read.count.1, ymax = read.count+read.count.1), width = 0.2) +
+  geom_point(aes(col=as.character(BP.count))) + xlim(0, 25000) + scale_y_continuous(trans='log10', labels = trans_format("log10", math_format(10^.x))) +
+  scale_color_manual("Number of\nbreakpoints", values = c("#3988C2", "#E36826")) +
+  xlab("Read length [nt]") + ylab("Read count [log10]") +
+  ggtitle(paste0("Rho = ", round(Rho.length$estimate,3), " | P = ", sprintf("%.3e", Rho.length$p.value))) +
+  theme_bw() + theme(aspect.ratio=1, panel.grid.minor = element_blank())
+read.lenght.vs.count.plot
+
+# Plot corelation between LoxPsym insertion frequency and read count
+
+# Create df reporting experimental insertion frequency and prepare summarising plot
+
+insert.freq.df <- tibble(sites = c(0:7), site.freq = c(1, 1, 0.164, 1, 0.319, 0.056, 0.059, 1))
+
+architecture.134.insert.freq.df <- architecture.134.read.count.df %>% 
+  left_join((insert.freq.df %>% dplyr::select(loxpsym.1 = sites, site.1.freq = site.freq))) %>%
+  left_join((insert.freq.df %>% dplyr::select(loxpsym.2 = sites, site.2.freq = site.freq))) %>% 
+  left_join((insert.freq.df %>% dplyr::select(loxpsym.3 = sites, site.3.freq = site.freq))) %>%
+  left_join((insert.freq.df %>% dplyr::select(loxpsym.4 = sites, site.4.freq = site.freq))) %>% 
+  mutate(loxPsym.freq = (site.1.freq*site.2.freq*site.3.freq*site.4.freq)*100)
+
+# Select only deletion architectures
+
+deletion.insert.freq.df <- architecture.134.insert.freq.df %>% 
+  filter(!grepl("INV", genotype)) %>% 
+  filter(!grepl("CPX", genotype)) %>% 
+  filter(BP.count >= 1)
+
+Rho.freq <- cor.test(log2(deletion.insert.freq.df$loxPsym.freq), log10(deletion.insert.freq.df$read.count))
+deletion.insert.freq.plot <- deletion.insert.freq.df %>%
+  ggplot(aes(x=loxPsym.freq, y=read.count)) +
+  geom_smooth(method = "lm", se = TRUE, size = 0.5, col = "black") +
+  geom_errorbar(aes(ymin = read.count-read.count.1, ymax = read.count+read.count.1), width = 0.2) +
+  geom_point(aes(col=as.character(BP.count)), size = 1.5) +
+  scale_y_continuous(trans='log10', labels = trans_format("log10", math_format(10^.x))) +
+  scale_x_continuous(trans = log2_trans(), breaks = c(0, 1, 10, 50, 100)) +
+  xlab("Insertion frequency [log2 scale]") + ylab("Read count [log10]") + 
+  ggtitle(paste0("Rho = ", round(Rho.freq$estimate,3), " | P = ", sprintf("%.3e", Rho.freq$p.value))) +
+  scale_color_manual("Number of\nbreakpoints", values = c("#3988C2", "#E36826")) +
+  theme_bw() + theme(aspect.ratio=1, panel.grid.minor = element_blank())
+deletion.insert.freq.plot
+
+pdf("/lustre/scratch126/gengen/projects/escramble/Notebook/Rplots/OTX2/OTX2.loxP7.scrambling.characterisation.pdf", width=18, height=4, useDingbats=FALSE)
+ggarrange(read.lenght.vs.BP.plot, read.lenght.vs.count.plot, deletion.insert.freq.plot, resampling.plot, nrow = 1, ncol = 4)
+dev.off()
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

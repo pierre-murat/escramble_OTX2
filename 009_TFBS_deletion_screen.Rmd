@@ -1,0 +1,1236 @@
+---
+title: "OTX2 TFBS deletion analysis"
+author: "Pierre Murat"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document:
+    toc: yes
+    toc_float: yes
+    toc_collapsed: yes
+    toc_depth: 3
+    number_sections: yes
+    theme: lumen
+  pdf_document:
+    toc: yes
+    toc_depth: '3'
+---
+
+This note book reports the analysis of the OTX2 TFBD deletion experiment
+
+```{r}
+setwd("/lustre/scratch126/gengen/projects/escramble")
+```
+
+# maxATAC
+
+## ATAC-seq processing
+
+Transcription factor (TF) binding prediction from ATAC-seq signal and DNA sequence is performed with maxATAC (https://github.com/MiraldiLab/maxATAC). maxATAC makes TF binding site (TFBS) predictions at 32 bp resolution.
+
+We use publicly available HAP-1 ATAC-seq data from: 
+Schick S, Rendeiro AF, Runggatscher K, Ringler A et al. Systematic characterization of BAF mutations provides insights into intracomplex synthetic lethalities in human cancers. Nat Genet 2019 Sep;51(9):1399-1410. PMID: 31427792
+
+an available at: https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE108390
+
+download data for GSM2897141:ATAC-seq_HAP1_WT_r1_C631 (SRR6410048) and GSM2897142:ATAC-seq_HAP1_WT_r2_C631 (SRR6410049) from SRA using SRA toolkit
+
+```{bash, eval = F}
+# bash, run locally
+cd /Users/pm23/Desktop/Projects/EnhancerScramble/Dataset/GSE108386 
+/Users/pm23/Desktop/Software/SRA_Toolkit/sratoolkit.3.1.1-mac-x86_64/bin/fasterq-dump SRR6410048 -O /Users/pm23/Desktop/Projects/EnhancerScramble/Dataset/GSE108386
+/Users/pm23/Desktop/Software/SRA_Toolkit/sratoolkit.3.1.1-mac-x86_64/bin/fasterq-dump SRR6410049 -O /Users/pm23/Desktop/Projects/EnhancerScramble/Dataset/GSE108386
+# Upload data to farm
+scp -r /Users/pm23/Desktop/Projects/EnhancerScramble/Dataset/GSE108386 farm:/lustre/scratch126/gengen/projects/escramble/Dataset
+# Data was deleted
+```
+
+Combine reads for both duplicates and align
+
+```{bash, eval = F}
+# FARM
+
+# Combine replicate
+cd /lustre/scratch126/gengen/projects/escramble/Dataset/GSE108386
+cat SRR6410048_1.fastq SRR6410049_1.fastq > HAP1.ATAC.seq_1.fastq
+cat SRR6410048_2.fastq SRR6410049_2.fastq > HAP1.ATAC.seq_2.fastq
+
+# Read statistics
+bsub -q normal -n 16 -R'select[mem>32000] rusage[mem=32000]' -M 32000 -o seqkit.stats.log \
+'seqkit stats HAP1.ATAC.seq_1.fastq > HAP1.ATAC.seq_1_stats.txt
+seqkit stats HAP1.ATAC.seq_2.fastq > HAP1.ATAC.seq_2_stats.txt'
+# 91,649,894 reads
+
+# Align, sort and compute coverage file
+bsub -q normal -n 12 -R'select[mem>32000] rusage[mem=32000] span[hosts=1]' -M32000 -o bwa_mem.log -J bwa \
+'bwa mem -t 12 /lustre/scratch126/gengen/teams/parts/pm23/Genomes/hg38/hg38.fa.gz HAP1.ATAC.seq_1.fastq HAP1.ATAC.seq_2.fastq > HAP1.ATAC.seq.sam
+samtools sort -@ 12 -m 2G HAP1.ATAC.seq.sam -o HAP1.ATAC.seq.bam
+samtools index -@ 12 HAP1.ATAC.seq.bam
+bamCoverage -p 12 -bs 100 --normalizeUsing CPM -b HAP1.ATAC.seq.bam -o HAP1.ATAC.seq.bw'
+
+scp farm:/lustre/scratch126/gengen/projects/escramble/Dataset/GSE108386/HAP1.ATAC.seq.bw /Users/pm23/Desktop/Projects/EnhancerScramble/Dataset/GSE108386
+```
+
+Prepare the ATAC-seq signal with maxATAC prepare
+
+```{bash, eval = F}
+# FARM
+
+conda activate maxatac
+
+bsub -q normal -n 12 -R'select[mem>32000] rusage[mem=32000] span[hosts=1]' -M32000 -o /lustre/scratch126/gengen/projects/escramble/Data/maxatac/maxatac_prepare/maxatac_prepare.log -J maxatac_prepare \
+'maxatac prepare -t 12 \
+-i /lustre/scratch126/gengen/projects/escramble/Dataset/GSE108386/HAP1.ATAC.seq.bam \
+-o /lustre/scratch126/gengen/projects/escramble/Data/maxatac/maxatac_prepare -prefix HAP1'
+
+scp farm:/lustre/scratch126/gengen/projects/escramble/Data/maxatac/maxatac_prepare/HAP1_IS_slop20_RP20M_minmax01.bw /Users/pm23/Desktop/Projects/EnhancerScramble/Dataset/GSE108386
+```
+
+Call ATAC-seq peaks
+
+ATAC peaks are called with the bdgpeakcall function of MACS2 with previously generated bedgraph files using the nucleosome depleted data
+
+```{bash, eval = F}
+# FARM
+
+module load HGI/softpack/groups/escramble/eSCRAMBLE/6
+conda activate bigwigtowig
+
+# Convert ATAC-seq bigwig to bedgraph
+
+bsub -q normal -n 4 -R'select[mem>32000] rusage[mem=32000]' -M 32000 -o /lustre/scratch126/gengen/projects/escramble/Dataset/GSE108386/bigWigToBedGraph.log \
+'conda_env="/software/hgi/envs/conda/team227/pm23/bigwigtowig"
+    source /software/hgi/installs/conda-audited/miniconda/bin/activate $conda_env
+bigWigToBedGraph /lustre/scratch126/gengen/projects/escramble/Dataset/GSE108386/HAP1.ATAC.seq.bw /lustre/scratch126/gengen/projects/escramble/Dataset/GSE108386/HAP1.ATAC.seq.bedGraph'
+
+# Call peaks
+
+bsub -q normal -n 12 -R'select[mem>32000] rusage[mem=32000]' -M 32000 \
+-o /lustre/scratch126/gengen/projects/escramble/Dataset/GSE108386/macs2.log \
+'macs2 bdgpeakcall -i /lustre/scratch126/gengen/projects/escramble/Dataset/GSE108386/HAP1.ATAC.seq.bedGraph \
+--cutoff 0.1 --max-gap 100 --min-length 50 \
+-o /lustre/scratch126/gengen/projects/escramble/Dataset/GSE108386/macs2/HAP1.ATAC.seq.c0_1.mg100.ml50.peaks'
+
+# FINAL PARAMETERS
+# cutoff 0.1, max-gap 100 and min-length 50
+```
+
+Convert macs2 peak files into bed files
+
+```{r, eval = F}
+# R
+
+# List files
+peak.file <- list.files("/lustre/scratch126/gengen/projects/escramble/Dataset/GSE108386/macs2/")
+peak.file <- peak.file[grepl(".peaks$", peak.file)]
+peak.path <- paste0("/lustre/scratch126/gengen/projects/escramble/Dataset/GSE108386/macs2/", peak.file)
+
+# Format and save bed files
+for (i in 1:length(peak.path)) {
+  file.id.i <- peak.file[i]
+  peaks.i <- read.table(peak.path[i], sep = "\t", skip = 1) %>% dplyr::select(V1, V2, V3, V5, V10)
+  path.i <- paste0(peak.path[i], ".bed")
+  write.table(peaks.i, path.i, sep="\t", col.names = F, row.names = F, quote = F)
+}
+```
+
+Filter macs2 peaks
+
+```{r, eval = F}
+# R
+
+HAP1.ATAC.macs2.peak.df <- read.table("/lustre/scratch126/gengen/projects/escramble/Dataset/GSE108386/macs2/HAP1.ATAC.seq.c0_1.mg100.ml50.peaks", sep = "\t", skip = 1) %>% dplyr::select(V1, V2, V3, V5, V10)
+colnames(HAP1.ATAC.macs2.peak.df) <- c("seqnames", "start", "end", "peak.pos", "score")
+HAP1.ATAC.macs2.peak.df <- HAP1.ATAC.macs2.peak.df %>% mutate(peak.width = end - start) # 795,775 peaks
+
+# Filter peaks on width (>= 500)
+HAP1.ATAC.macs2.peak.filter.df <- HAP1.ATAC.macs2.peak.df %>% filter(peak.width >= 500 & peak.width <= 10000) # 95,492 peaks
+
+# Filter peaks on score (>= 250)
+HAP1.ATAC.macs2.peak.filter.df <- HAP1.ATAC.macs2.peak.filter.df %>% filter(score >= 250) # 72,705 peaks
+
+# Save
+write.table(HAP1.ATAC.macs2.peak.filter.df, "/lustre/scratch126/gengen/projects/escramble/Dataset/GSE108386/macs2/HAP1.ATAC.seq.peaks.bed", sep="\t", col.names = F, row.names = F, quote = F)
+```
+
+## OTX2 super-enhancer
+
+Predict TF binding within OTX2 domain (chr14:56,600,000-57,100,000)
+
+Prepare bed file for ROI
+
+```{r, eval = F}
+# R
+OTX2.bed <- cbind.data.frame(seqnames = "chr14", start = 56600000, end = 57100000)
+write.table(OTX2.bed, "/lustre/scratch126/gengen/projects/escramble/Data/maxatac/OTX2/OTX2.bed", sep="\t", col.names = F, row.names = F, quote = F)
+```
+
+List available models
+
+```{r, eval = F}
+# R
+
+library(tidyr)
+
+maxATAC.models <- list.files("~/opt/maxatac/data/models")
+# Models
+paste0(maxATAC.models, collapse = ", ")
+# ARID3A, ARNT, ASH1L, ATF1, ATF2, ATF3, ATF7, BACH1, BHLHE40, CBX2, CEBPB, CEBPD, CEBPZ, CREB1,
+# CREM, CTCF, CUX1, E2F8, E4F1, EGR1, ELF1, ELF4, ELK1, ESRRA, ETS1, ETV6, FOS, FOSL1, FOSL2,
+# FOXA1, FOXK2, FOXM1, FOXP1, GABPA, GATA3, GATA4, GATAD2B, HES1, HSF1, IKZF1, IRF3, JUN, JUNB,
+# JUND, KLF5, KMT2A, LEF1, MAFF, MAFK, MAX, MAZ, MBD2, MEF2A, MNT, MXI1, MYB, MYBL2, MYC, NANOG,
+# NEUROD1, NFATC3, NFE2L2, NFIA, NFIC, NFXL1, NFYA, NFYB, NKRF, NR2C1, NR2C2, NR2F1, NR2F2, NR2F6,
+# NRF1, PAX8, PBX3, PKNOX1, POU5F1, RELA, REST, RFX1, RFX5, RUNX1, RXRA, SETDB1, SIX5, SKIL, SMAD1,
+# SMAD5, SOX6, SP1, SPI1, SREBF1, SREBF2, SRF, STAT5A, TBP, TCF12, TCF7, TCF7L2, TEAD4, USF1, USF2,
+# YBX1, YY1, ZBED1, ZBTB11, ZBTB33, ZBTB40, ZBTB7A, ZEB1, ZFX, ZHX2, ZKSCAN1, ZNF143, ZNF207, ZNF217,
+# ZNF24, ZNF274, ZNF282, ZNF384, ZNF407, ZNF569, ZNF592, ZNF687, ZSCAN29, ZZZ3
+# Find models
+maxATAC.models.h5.df <- tibble(path = list.files("~/opt/maxatac/data/models", pattern = "*.h5", recursive = TRUE)) %>% separate(path, c("TF", "H5"), "/") %>% mutate(H5_PATH = paste0("/nfs/users/nfs_p/pm23/opt/maxatac/data/models/", TF, "/", H5))
+# Save
+write.csv(maxATAC.models.h5.df, "/lustre/scratch126/gengen/projects/escramble/Data/maxatac/maxATAC.models.csv", row.names = F, quote = F)
+# Save a sample for testing
+write.csv(maxATAC.models.h5.df[1:2,], "/lustre/scratch126/gengen/projects/escramble/Data/maxatac/maxATAC.models.test.csv", row.names = F, quote = F)
+```
+
+```{bash, eval = F}
+# FARM
+  
+# Test maxatac for a single TF
+
+bsub -q normal -n 12 -R'select[mem>32000] rusage[mem=32000] span[hosts=1]' -M32000 -o /lustre/scratch126/gengen/projects/escramble/Data/maxatac/OTX2/maxatac_predict.log -J maxatac_predict \
+'maxatac predict -tF YY1 -n HAP1_YY1 \
+-m /nfs/users/nfs_p/pm23/opt/maxatac/data/models/YY1/YY1_binary_revcomp99_fullModel_RR0_90.h5 \
+--signal /lustre/scratch126/gengen/projects/escramble/Data/maxatac/maxatac_prepare/HAP1_IS_slop20_RP20M_minmax01.bw \
+--roi /lustre/scratch126/gengen/projects/escramble/Data/maxatac/OTX2/OTX2.bed \
+-o /lustre/scratch126/gengen/projects/escramble/Data/maxatac/OTX2/'
+
+# Run analysis for all TFs
+# sed function is used to recover column names and values from the csv file
+
+rm maxatac_predict.log
+bsub -q normal -n 12 -R'select[mem>32000] rusage[mem=32000] span[hosts=1]' -M32000 -o /lustre/scratch126/gengen/projects/escramble/Data/maxatac/OTX2/maxatac_predict.log -J maxatac_predict \
+'MODELS_CSV="/lustre/scratch126/gengen/projects/escramble/Data/maxatac/maxATAC.models.csv"
+OUTPUT_FOLDER="/lustre/scratch126/gengen/projects/escramble/Data/maxatac/OTX2"
+sed 1d $MODELS_CSV | while IFS=, read -r TF H5 H5_PATH
+do
+    conda_env="/software/hgi/envs/conda/team227/pm23/maxatac"
+    source /software/hgi/installs/conda-audited/miniconda/bin/activate $conda_env
+    echo "TF: $TF"
+    echo "path: $H5_PATH"
+    maxatac predict -tF $TF -n HAP1_OTX2_$TF \
+    -m $H5_PATH \
+    --signal /lustre/scratch126/gengen/projects/escramble/Data/maxatac/maxatac_prepare/HAP1_IS_slop20_RP20M_minmax01.bw \
+    --roi /lustre/scratch126/gengen/projects/escramble/Data/maxatac/OTX2/OTX2.bed \
+    -o "${OUTPUT_FOLDER}"
+done'
+```
+
+Compute TF enrichment within ATAC-seq peaks and compute binding selectivity within the R5B domain
+
+```{r, eval = F}
+# R
+
+setwd("/lustre/scratch126/gengen/projects/escramble")
+
+library(dplyr)
+library(rtracklayer)
+
+# Prepare ATAC-seq peaks gr
+# chr14:56,885,748-56,886,162 (R4A)
+# chr14:56,888,326-56,888,642 (R4A)
+# chr14:56,891,162-56,891,683 (R4A)
+# chr14:56,894,697-56,895,144 (R4B)
+# chr14:56,896,955-56,897,495 (R4B)
+# chr14:56,899,857-56,901,013 (R5A)
+# chr14:56,902,255-56,902,721 (R5B)
+# chr14:56,903,356-56,903,747 (R5C)
+# chr14:56,905,249-56,905,883 (R5D)
+# chr14:56,907,129-56,907,558 (R5D)
+ATAC.peaks.start <- c(56885748, 56888326, 56891162, 56894697, 56896955, 56899857, 56902255, 56903356, 56905249, 56907129)
+ATAC.peaks.end <- c(56886162, 56888642, 56891683, 56895144, 56897495, 56901013, 56902721, 56903747, 56905883, 56907558)
+ATAC.peaks.id <- paste0("peak_", c(1:10))
+ATAC.peaks.domain <- c("R4A", "R4A", "R4A", "R4B", "R4B", "R5A", "R5B", "R5C", "R5D", "R5D")
+ATAC.peaks.gr <- tibble(chr = "chr14", start = ATAC.peaks.start, end = ATAC.peaks.end, id = ATAC.peaks.id, domain = ATAC.peaks.domain) %>% GRanges()
+
+# List maxatac bigwig files
+
+maxatac.files <- list.files("/lustre/scratch126/gengen/projects/escramble/Data/maxatac/OTX2/")
+maxatac.files <- maxatac.files[grepl(".bw", maxatac.files)]
+maxatac.path <- paste0("/lustre/scratch126/gengen/projects/escramble/Data/maxatac/OTX2/", maxatac.files)
+maxatac.TF <- gsub("HAP1_OTX2_", "", maxatac.files)
+maxatac.TF <- gsub(".bw", "", maxatac.TF)
+
+R5B.enr.df <- tibble()
+for (i in 1:length(maxatac.files)) {
+  print(i/length(maxatac.files))
+  TF.i <- maxatac.TF[i]
+  TF.bw.i <- import(maxatac.path[i])
+  TF.domain.df.i <- as.data.frame(mergeByOverlaps(ATAC.peaks.gr, TF.bw.i)) %>% group_by(id) %>% summarise(score.mean = mean(score, na.rm = T), score.max = max(score, na.rm = T), peak.width = mean(ATAC.peaks.gr.width, na.rm = T)) %>% mutate(score.norm = (score.mean*1000)/peak.width)
+  TF.R5B.score.i <- TF.domain.df.i[which(TF.domain.df.i$id == "peak_7"),]$score.max
+  TF.R5B.val.i <- TF.domain.df.i[which(TF.domain.df.i$id == "peak_7"),]$score.norm
+  TF.R5B.enr.i <- TF.R5B.val.i/sum(TF.domain.df.i$score.norm)
+  TF.summary.i <- tibble(TF = TF.i, R5B.score = TF.R5B.score.i, R5B.enr = TF.R5B.enr.i)
+  R5B.enr.df <- rbind(R5B.enr.df, TF.summary.i)
+}
+saveRDS(R5B.enr.df, "./001_Enhancer_mapping/rds/R5B.enr.df.rds")
+```
+
+Assess TF gene expression in HAP1 for selecting potential candidates
+
+```{r message=FALSE, warning=FALSE, eval = T}
+# R
+
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(ggrepel)
+library(wesanderson)
+
+# Load RNA-seq data
+RNAseq.df <- read.table("/lustre/scratch126/gengen/projects/escramble/Dataset/RNAseq/gene_expression_table.tsv", header = T)
+
+# Select maxatac TF
+maxATAC.models.h5.df <- read.csv("/lustre/scratch126/gengen/projects/escramble/Data/maxatac/maxATAC.models.csv")
+RNAseq.TF.df <- RNAseq.df %>% filter(gene %in% maxATAC.models.h5.df$TF) %>% mutate(HAP1 = (HAP1_c12_R1+HAP1_c12_R2)/2) %>% select(TF = gene, HAP1)
+
+# Load maxatac data
+R5B.enr.df <- readRDS("./001_Enhancer_mapping/rds/R5B.enr.df.rds")
+
+# Add gene expression information
+R5B.enr.exp.df <- R5B.enr.df %>% left_join(RNAseq.TF.df)
+
+pal <- wes_palette("Zissou1", 3, type = "continuous")
+R5B.TF.plot <- R5B.enr.exp.df %>%
+  mutate(label = ifelse(R5B.enr >= 0.4, TF, "")) %>% 
+  ggplot(aes(x=R5B.score, y=R5B.enr, label=label, colour = log10(HAP1))) +
+  geom_point() + geom_text_repel(aes(label = label), box.padding = 0.9) +
+  scale_color_gradientn("HAP1\nexpression\n(log10)", colours = pal) + 
+  xlab("R5B binding score") + ylab("R5B selectivity score") +
+  theme_bw() + theme(aspect.ratio=1, panel.grid.major = element_blank())
+R5B.TF.plot
+
+R5B.TF.plot <- R5B.enr.exp.df %>%
+  mutate(label = ifelse(TF %in% c("FOXA1", "FOXK2", "YY1", "RFX5", "MYB"), TF, "")) %>% 
+  ggplot(aes(x=R5B.score, y=R5B.enr, label=label, colour = log10(HAP1))) +
+  geom_point() + geom_text_repel(aes(label = label), box.padding = 1) +
+  scale_color_gradientn("HAP1\nexpression\n(log10)", colours = pal) + 
+  xlab("R5B binding score") + ylab("R5B selectivity score") +
+  theme_bw() + theme(aspect.ratio=1, panel.grid.major = element_blank())
+R5B.TF.plot
+```
+
+Interesting TFs include:
+- FOX family (FOXA1 and FOXK2)
+- YY1
+- RFX5
+- MYB
+
+Indentify consensu binding motifs for targeting and mutagenesis
+
+Position weight matrices (pwm) are recovered from the JASPAR database and processed with TFBSTools:
+- FOXA1: MA0148.5
+- FOXK2: MA1103.3
+- YY1: MA0095.2
+- RFX5: MA0510.3
+- MYB: MA0100.4
+
+```{r, eval = F}
+
+library(TFBSTools)
+library(Biostrings)
+library(BSgenome.Hsapiens.UCSC.hg38)
+
+setwd("/lustre/scratch126/gengen/projects/escramble")
+
+# Load pfm
+
+FOXA1.pfm <- readJASPARMatrix("/lustre/scratch126/gengen/projects/escramble/Dataset/JASPAR/MA0148.5.jaspar", matrixClass="PFM")
+FOXK2.pfm <- readJASPARMatrix("/lustre/scratch126/gengen/projects/escramble/Dataset/JASPAR/MA1103.3.jaspar", matrixClass="PFM")
+YY1.pfm <- readJASPARMatrix("/lustre/scratch126/gengen/projects/escramble/Dataset/JASPAR/MA0095.2.jaspar", matrixClass="PFM")
+RFX5.pfm <- readJASPARMatrix("/lustre/scratch126/gengen/projects/escramble/Dataset/JASPAR/MA0510.3.jaspar", matrixClass="PFM")
+MYB.pfm <- readJASPARMatrix("/lustre/scratch126/gengen/projects/escramble/Dataset/JASPAR/MA0100.4.jaspar", matrixClass="PFM")
+
+# Plot seqlogo
+
+seqLogo(toICM(FOXA1.pfm, pseudocounts=0.8, schneider=TRUE)$FOXA1)
+seqLogo(toICM(FOXK2.pfm, pseudocounts=0.8, schneider=TRUE)$FOXK2)
+seqLogo(toICM(YY1.pfm, pseudocounts=0.8, schneider=TRUE)$YY1)
+seqLogo(toICM(RFX5.pfm, pseudocounts=0.8, schneider=TRUE)$RFX5)
+seqLogo(toICM(MYB.pfm, pseudocounts=0.8, schneider=TRUE)$MYB)
+
+# Recover sequence of R5B ATAC-seq peak
+R5B.ATAC.peak.gr <- ATAC.peaks.gr[ATAC.peaks.gr$domain == "R5B"]
+
+# We take a 500 bp domain centered on manually define peak
+R5B.ATAC.peak.resize.gr <- resize(R5B.ATAC.peak.gr, 500, fix = "center")
+R5B.ATAC.peak.seq <- getSeq(Hsapiens, R5B.ATAC.peak.resize.gr)
+
+# Map consensus sequences
+
+FOXA1.siteset <- searchSeq(toPWM(FOXA1.pfm, pseudocounts=0.8), R5B.ATAC.peak.seq, seqname="R5B", min.score="60%", strand="*")
+FOXA1.siteset.df <- as.data.frame(writeGFF3(FOXA1.siteset))
+
+FOXK2.siteset <- searchSeq(toPWM(FOXK2.pfm, pseudocounts=0.8), R5B.ATAC.peak.seq, seqname="R5B", min.score="60%", strand="*")
+FOXK2.siteset.df <- as.data.frame(writeGFF3(FOXK2.siteset))
+
+YY1.siteset <- searchSeq(toPWM(YY1.pfm, pseudocounts=0.8), R5B.ATAC.peak.seq, seqname="R5B", min.score="60%", strand="*")
+YY1.siteset.df <- as.data.frame(writeGFF3(YY1.siteset))
+
+RFX5.siteset <- searchSeq(toPWM(RFX5.pfm, pseudocounts=0.8), R5B.ATAC.peak.seq, seqname="R5B", min.score="60%", strand="*")
+RFX5.siteset.df <- as.data.frame(writeGFF3(RFX5.siteset))
+
+MYB.siteset <- searchSeq(toPWM(MYB.pfm, pseudocounts=0.8), R5B.ATAC.peak.seq, seqname="R5B", min.score="60%", strand="*")
+MYB.siteset.df <- as.data.frame(writeGFF3(MYB.siteset))
+```
+
+A set of 12 epegRNAs were designed to target 6 FOXA1/FOXK2, 1 YY1, 1 RFX5 and 4 MYB binding site
+Oligonucleotide for cloning are designed locally ~/Desktop/Projects/EnhancerScramble/002_pegRNA_design_v1_4.Rmd
+
+Prepare plots
+
+```{r message=FALSE, warning=FALSE, eval = T}
+
+library(rtracklayer)
+
+# Load tracks
+interval <- GRanges(seqnames = "chr14", ranges = IRanges(start = 56797000, end = 56914000))
+ATAC.bw <- import("/lustre/scratch126/gengen/projects/escramble/Dataset/GSE108386/HAP1.ATAC.seq.bw", selection = interval)
+FOXA1.bw <- import("/lustre/scratch126/gengen/projects/escramble/Data/maxatac/OTX2/HAP1_OTX2_FOXA1.bw", selection = interval)
+RFX5.bw <- import("/lustre/scratch126/gengen/projects/escramble/Data/maxatac/OTX2/HAP1_OTX2_RFX5.bw", selection = interval)
+MYB.bw <- import("/lustre/scratch126/gengen/projects/escramble/Data/maxatac/OTX2/HAP1_OTX2_MYB.bw", selection = interval)
+YY1.bw <- import("/lustre/scratch126/gengen/projects/escramble/Data/maxatac/OTX2/HAP1_OTX2_YY1.bw", selection = interval)
+
+# Prepare dataframes
+ATAC.df <- as.data.frame(ATAC.bw) %>% mutate(track = "ATAC")
+FOXA1.df <- as.data.frame(FOXA1.bw) %>% mutate(track = "FOXA1")
+RFX5.df <- as.data.frame(RFX5.bw) %>% mutate(track = "RFX5")
+MYB.df <- as.data.frame(MYB.bw) %>% mutate(track = "MYB")
+YY1.df <- as.data.frame(YY1.bw) %>% mutate(track = "YY1")
+maxATAC.df <- rbind(ATAC.df, MYB.df, FOXA1.df)
+
+maxATAC.plot <- maxATAC.df %>% ggplot(aes(x = start, y = score)) +
+  geom_area(col = NA, fill = "#E36726") +
+  geom_line(size = 0.25) +
+  ylab("Score") + xlab("Coordinate") + ylim(0,1) +
+  geom_vline(xintercept=56799899, linetype="dashed") +
+  geom_vline(xintercept=56810463, linetype="dashed") +
+  geom_vline(xintercept=56901292, linetype="dashed") +
+  geom_vline(xintercept=56903183, linetype="dashed") +
+  facet_wrap(~ track, scales = "free", ncol = 1) +
+  #scale_fill_manual(values=c(DEL.simple.OTX2.coverage.palette)) +
+  theme_bw() + theme(aspect.ratio=0.15, panel.grid.minor = element_blank())
+maxATAC.plot
+
+pdf("./Rplots/OTX2/OTX2.maxATAC.tracks.pdf", width=7, height=8, useDingbats=FALSE)
+maxATAC.plot
+dev.off()
+```
+
+# File download
+    
+Sequencing data is recovered from Illumina basespace using command line
+
+First run - 05/12/24 - sorted cells in triplicate, project: OTX super enhancer validation repeat  - 439400999 (same project)
+
+```{bash, eval = F}
+# bash
+cd /lustre/scratch126/gengen/projects/escramble/Data/Illumina
+mkdir 241205
+cd 241205
+# download data
+bs download project -i 439400999 -o . --extension=fastq.gz
+# 1st enrichment round
+zcat ./12x_neg_1st_A_L001_ds.4d1a898965b5415e87bf05ec3e586d50/12x-neg-1st-A_S4_L001_R1_001.fastq.gz | wc -l | awk '{print $1/4}'
+# 1,957,481 reads
+zcat ./12x_neg_1st_B_L001_ds.ab131e4a230d434cbbec1d7a6eca0ec1/12x-neg-1st-B_S5_L001_R1_001.fastq.gz | wc -l | awk '{print $1/4}'
+# 1,257,311 reads
+zcat ./12x_neg_1st_C_L001_ds.b176d11730f54a7c915d3cf3253ee84b/12x-neg-1st-C_S6_L001_R1_001.fastq.gz | wc -l | awk '{print $1/4}'
+# 2,548,558 reads
+# 2nd enrichment round
+# Count reads
+zcat ./12x_neg_2nd_A_L001_ds.97066c49f0814507bba97fef73bb9f2e/12x-neg-2nd-A_S1_L001_R1_001.fastq.gz | wc -l | awk '{print $1/4}'
+# 1,539,810 reads
+zcat ./12x_neg_2nd_B_L001_ds.ceb1d85698c84031bff25014ddeef1f3/12x-neg-2nd-B_S2_L001_R1_001.fastq.gz | wc -l | awk '{print $1/4}'
+# 1,822,182 reads
+zcat ./12x_neg_2nd_C_L001_ds.c79cd70601934652b00d36cbb5422caf/12x-neg-2nd-C_S3_L001_R1_001.fastq.gz | wc -l | awk '{print $1/4}'
+# 1,493,373 reads
+# Total
+# 10,618,715 total reads
+```
+
+Second run - 07/12/24 - unsorted cells in triplicate, project: OTX super enhancer validation repeat 2 - 439624060 
+
+```{bash, eval = F}
+# bash
+cd /lustre/scratch126/gengen/projects/escramble/Data/Illumina
+mkdir 241207
+cd 241207
+# download data
+bs download project -i 439624060 -o . --extension=fastq.gz
+# Count reads
+zcat ./12xrep_A_L001_ds.93b04b1a47d3430cb38c53248d150b0b/12xrep-A_S1_L001_R1_001.fastq.gz | wc -l | awk '{print $1/4}'
+# 1,782,314 reads
+zcat ./12xrep_B_L001_ds.d0ef5a7156764f6f885bfefeaaa9cd75/12xrep-B_S2_L001_R1_001.fastq.gz | wc -l | awk '{print $1/4}'
+# 3,464,326 reads
+zcat ./12xrep_C_L001_ds.1ce46e492d064b6fb7a97930a9cee947/12xrep-C_S3_L001_R1_001.fastq.gz | wc -l | awk '{print $1/4}'
+# 2,668,588 reads
+# Total
+# 7,915,228 total reads
+```
+
+# Data formatting
+
+The analysis pipeline consists in:
+- merge both R1 and R2 reads with PEAR
+- select amplicons with the right PCR primers (seqkit grep) - fwd: AGTCCCACCCTTAATCTCTTTGA, rev: TCATTCATGTTTGATTCAGCACA  
+- grep patterns associated with the intended edits (seqkit grep)
+
+This chunk report read merging
+
+```{bash, eval = F}
+# bash
+cd /lustre/scratch126/gengen/projects/escramble/Notebook/006_OTX2_TFBS_deletion_analysis/FASTQ
+
+# Merge reads (with pear)
+
+########
+
+# Round 0 replicate A (1343620 reads)
+
+bsub -q normal -n 12 -R'select[mem>32000] rusage[mem=32000] span[hosts=1]' -M32000 -o pear.log -J pear \
+'conda_env="/software/hgi/envs/conda/team227/pm23/pear"
+source /software/hgi/installs/conda-audited/miniconda/bin/activate $conda_env
+pear -j 12 \
+-f /lustre/scratch126/gengen/projects/escramble/Data/Illumina/241207/12xrep_A_L001_ds.93b04b1a47d3430cb38c53248d150b0b/12xrep-A_S1_L001_R1_001.fastq.gz \
+-r /lustre/scratch126/gengen/projects/escramble/Data/Illumina/241207/12xrep_A_L001_ds.93b04b1a47d3430cb38c53248d150b0b/12xrep-A_S1_L001_R2_001.fastq.gz  \
+-o OTX2_12TFBS_round0_repA
+cat OTX2_12TFBS_round0_repA.assembled.fastq | wc -l | awk '{print $1/4}' > OTX2_12TFBS_round0_repA.read.count.txt'
+
+# Round 0 replicate B (2964607 reads)
+
+bsub -q normal -n 12 -R'select[mem>32000] rusage[mem=32000] span[hosts=1]' -M32000 -o pear.log -J pear \
+'conda_env="/software/hgi/envs/conda/team227/pm23/pear"
+source /software/hgi/installs/conda-audited/miniconda/bin/activate $conda_env
+pear -j 12 \
+-f /lustre/scratch126/gengen/projects/escramble/Data/Illumina/241207/12xrep_B_L001_ds.d0ef5a7156764f6f885bfefeaaa9cd75/12xrep-B_S2_L001_R1_001.fastq.gz \
+-r /lustre/scratch126/gengen/projects/escramble/Data/Illumina/241207/12xrep_B_L001_ds.d0ef5a7156764f6f885bfefeaaa9cd75/12xrep-B_S2_L001_R2_001.fastq.gz  \
+-o OTX2_12TFBS_round0_repB
+cat OTX2_12TFBS_round0_repB.assembled.fastq | wc -l | awk '{print $1/4}' > OTX2_12TFBS_round0_repB.read.count.txt'
+
+# Round 0 replicate C (2362566 reads)
+
+bsub -q normal -n 12 -R'select[mem>32000] rusage[mem=32000] span[hosts=1]' -M32000 -o pear.log -J pear \
+'conda_env="/software/hgi/envs/conda/team227/pm23/pear"
+source /software/hgi/installs/conda-audited/miniconda/bin/activate $conda_env
+pear -j 12 \
+-f /lustre/scratch126/gengen/projects/escramble/Data/Illumina/241207/12xrep_C_L001_ds.1ce46e492d064b6fb7a97930a9cee947/12xrep-C_S3_L001_R1_001.fastq.gz \
+-r /lustre/scratch126/gengen/projects/escramble/Data/Illumina/241207/12xrep_C_L001_ds.1ce46e492d064b6fb7a97930a9cee947/12xrep-C_S3_L001_R2_001.fastq.gz  \
+-o OTX2_12TFBS_round0_repC
+cat OTX2_12TFBS_round0_repC.assembled.fastq | wc -l | awk '{print $1/4}' > OTX2_12TFBS_round0_repC.read.count.txt'
+
+########
+
+# Round 1 replicate A (1739218 reads)
+
+bsub -q normal -n 12 -R'select[mem>32000] rusage[mem=32000] span[hosts=1]' -M32000 -o pear.log -J pear \
+'conda_env="/software/hgi/envs/conda/team227/pm23/pear"
+source /software/hgi/installs/conda-audited/miniconda/bin/activate $conda_env
+pear -j 12 \
+-f /lustre/scratch126/gengen/projects/escramble/Data/Illumina/241205/12x_neg_1st_A_L001_ds.4d1a898965b5415e87bf05ec3e586d50/12x-neg-1st-A_S4_L001_R1_001.fastq.gz \
+-r /lustre/scratch126/gengen/projects/escramble/Data/Illumina/241205/12x_neg_1st_A_L001_ds.4d1a898965b5415e87bf05ec3e586d50/12x-neg-1st-A_S4_L001_R2_001.fastq.gz  \
+-o OTX2_12TFBS_round1_repA
+cat OTX2_12TFBS_round1_repA.assembled.fastq | wc -l | awk '{print $1/4}' > OTX2_12TFBS_round1_repA.read.count.txt'
+
+# Round 1 replicate B (1001061 reads)
+
+bsub -q normal -n 12 -R'select[mem>32000] rusage[mem=32000] span[hosts=1]' -M32000 -o pear.log -J pear \
+'conda_env="/software/hgi/envs/conda/team227/pm23/pear"
+source /software/hgi/installs/conda-audited/miniconda/bin/activate $conda_env
+pear -j 12 \
+-f /lustre/scratch126/gengen/projects/escramble/Data/Illumina/241205/12x_neg_1st_B_L001_ds.ab131e4a230d434cbbec1d7a6eca0ec1/12x-neg-1st-B_S5_L001_R1_001.fastq.gz \
+-r /lustre/scratch126/gengen/projects/escramble/Data/Illumina/241205/12x_neg_1st_B_L001_ds.ab131e4a230d434cbbec1d7a6eca0ec1/12x-neg-1st-B_S5_L001_R2_001.fastq.gz  \
+-o OTX2_12TFBS_round1_repB
+cat OTX2_12TFBS_round1_repB.assembled.fastq | wc -l | awk '{print $1/4}' > OTX2_12TFBS_round1_repB.read.count.txt'
+
+# Round 1 replicate C (2176013 reads)
+
+bsub -q normal -n 12 -R'select[mem>32000] rusage[mem=32000] span[hosts=1]' -M32000 -o pear.log -J pear \
+'conda_env="/software/hgi/envs/conda/team227/pm23/pear"
+source /software/hgi/installs/conda-audited/miniconda/bin/activate $conda_env
+pear -j 12 \
+-f /lustre/scratch126/gengen/projects/escramble/Data/Illumina/241205/12x_neg_1st_C_L001_ds.b176d11730f54a7c915d3cf3253ee84b/12x-neg-1st-C_S6_L001_R1_001.fastq.gz \
+-r /lustre/scratch126/gengen/projects/escramble/Data/Illumina/241205/12x_neg_1st_C_L001_ds.b176d11730f54a7c915d3cf3253ee84b/12x-neg-1st-C_S6_L001_R2_001.fastq.gz  \
+-o OTX2_12TFBS_round1_repC
+cat OTX2_12TFBS_round1_repC.assembled.fastq | wc -l | awk '{print $1/4}' > OTX2_12TFBS_round1_repC.read.count.txt'
+
+########
+
+# Round 2 replicate A (1247791 reads)
+
+bsub -q normal -n 12 -R'select[mem>32000] rusage[mem=32000] span[hosts=1]' -M32000 -o pear.log -J pear \
+'conda_env="/software/hgi/envs/conda/team227/pm23/pear"
+source /software/hgi/installs/conda-audited/miniconda/bin/activate $conda_env
+pear -j 12 \
+-f /lustre/scratch126/gengen/projects/escramble/Data/Illumina/241205/12x_neg_2nd_A_L001_ds.97066c49f0814507bba97fef73bb9f2e/12x-neg-2nd-A_S1_L001_R1_001.fastq.gz \
+-r /lustre/scratch126/gengen/projects/escramble/Data/Illumina/241205/12x_neg_2nd_A_L001_ds.97066c49f0814507bba97fef73bb9f2e/12x-neg-2nd-A_S1_L001_R2_001.fastq.gz  \
+-o OTX2_12TFBS_round2_repA
+cat OTX2_12TFBS_round2_repA.assembled.fastq | wc -l | awk '{print $1/4}' > OTX2_12TFBS_round2_repA.read.count.txt'
+
+# Round 2 replicate B (1157701 reads)
+
+bsub -q normal -n 12 -R'select[mem>32000] rusage[mem=32000] span[hosts=1]' -M32000 -o pear.log -J pear \
+'conda_env="/software/hgi/envs/conda/team227/pm23/pear"
+source /software/hgi/installs/conda-audited/miniconda/bin/activate $conda_env
+pear -j 12 \
+-f /lustre/scratch126/gengen/projects/escramble/Data/Illumina/241205/12x_neg_2nd_B_L001_ds.ceb1d85698c84031bff25014ddeef1f3/12x-neg-2nd-B_S2_L001_R1_001.fastq.gz \
+-r /lustre/scratch126/gengen/projects/escramble/Data/Illumina/241205/12x_neg_2nd_B_L001_ds.ceb1d85698c84031bff25014ddeef1f3/12x-neg-2nd-B_S2_L001_R2_001.fastq.gz  \
+-o OTX2_12TFBS_round2_repB
+cat OTX2_12TFBS_round2_repB.assembled.fastq | wc -l | awk '{print $1/4}' > OTX2_12TFBS_round2_repB.read.count.txt'
+
+# Round 2 replicate C (1153022 reads)
+
+bsub -q normal -n 12 -R'select[mem>32000] rusage[mem=32000] span[hosts=1]' -M32000 -o pear.log -J pear \
+'conda_env="/software/hgi/envs/conda/team227/pm23/pear"
+source /software/hgi/installs/conda-audited/miniconda/bin/activate $conda_env
+pear -j 12 \
+-f /lustre/scratch126/gengen/projects/escramble/Data/Illumina/241205/12x_neg_2nd_C_L001_ds.c79cd70601934652b00d36cbb5422caf/12x-neg-2nd-C_S3_L001_R1_001.fastq.gz \
+-r /lustre/scratch126/gengen/projects/escramble/Data/Illumina/241205/12x_neg_2nd_C_L001_ds.c79cd70601934652b00d36cbb5422caf/12x-neg-2nd-C_S3_L001_R2_001.fastq.gz  \
+-o OTX2_12TFBS_round2_repC
+cat OTX2_12TFBS_round2_repC.assembled.fastq | wc -l | awk '{print $1/4}' > OTX2_12TFBS_round2_repC.read.count.txt'
+```
+
+Select amplicons from reads that have both fwd and rev primers
+
+```{bash, eval = F}
+
+cd /lustre/scratch126/gengen/projects/escramble/Notebook/006_OTX2_TFBS_deletion_analysis/FASTQ
+
+# Select amplicons that have both fwd and rev primers
+
+# Sample to be analysed
+
+# OTX2_12TFBS_round0_repA
+# OTX2_12TFBS_round0_repB
+# OTX2_12TFBS_round0_repC
+# OTX2_12TFBS_round1_repA
+# OTX2_12TFBS_round1_repB
+# OTX2_12TFBS_round1_repC
+# OTX2_12TFBS_round2_repA
+# OTX2_12TFBS_round2_repB
+# OTX2_12TFBS_round2_repC
+
+bsub -q normal -n 16 -R'select[mem>32000] rusage[mem=32000]' -M 32000 -o pattern.log \
+'
+
+# Define sample name and create working directory
+cd /lustre/scratch126/gengen/projects/escramble/Notebook/006_OTX2_TFBS_deletion_analysis/FASTQ
+SAMPLE_NAME="OTX2_12TFBS_round2_repC"
+mkdir ${SAMPLE_NAME}
+
+# Load seqkit conda environment
+conda_env="/software/hgi/envs/conda/team227/pm23/seqkit"
+source /software/hgi/installs/conda-audited/miniconda/bin/activate $conda_env
+
+# Select amplicons that have both fwd and rev primer
+seqkit amplicon -I --max-mismatch 4 -j 8 -F "AGTCCCACCCTTAATCTCTTTGA" -R "TCATTCATGTTTGATTCAGCACA" ${SAMPLE_NAME}.assembled.fastq \
+> ${SAMPLE_NAME}.amplicon.fastq
+'
+```
+
+# Crispresso2 (all deletions)
+
+Edits quantification is assessed using CRISPResso2 (https://github.com/pinellolab/CRISPResso2)
+
+CRISPResso is run for each experiment providing the position of the expected edits
+Position of the TFBSs in the amplicon:
+- FOXA1_1: pos 58-65
+- FOXA1_2: pos 152-159
+- FOXA1_3: pos 219-226
+- FOXA1_4: pos 249-256
+- FOXA1_5: pos 270-277
+- FOXA1_6: pos 374-381
+- RFX5: pos 35-48
+- YY1: pos 355-365
+- MYB_1: pos 201-206
+- MYB_2: pos 278-283
+- MYB_3: pos 325-330
+- MYB_4: pos 366-371
+
+Edit quantification is performed by assessing the number of reads that support a deletion over the TFBS of interest
+
+```{bash, eval = F}
+# bash
+
+# Round 0 replicate A
+
+bsub -q normal -n 12 -R'select[mem>32000] rusage[mem=32000] span[hosts=1]' -M32000 -o CRISPResso.log -J CRISPResso \
+'cd /lustre/scratch126/gengen/projects/escramble/Notebook/006_OTX2_TFBS_deletion_analysis/CRISPRessoQWC
+AMPLICON_seq="AGTCCCACCCTTAATCTCTTTGAGGCCTCTATGAGTTTCCATAGCACTTTACAAAAGATCTTTATTGAGGAAAGGATTGGACAAACTTTCCTTATATGTGTGGCCCACACCATTAATTGCCCCATCTCCTTTAGTAAGGCCTTATTCCTATGTAAATACCCTTGCATAATGTTACAGGCTATTGTTAGGCCAGCGCCAGTCAGTCGCCACTTATATGCATTTTTACTTCAATCCGCTGCTCAGAGAATGAAAAGATGTCTGGACTTAAGCTGTTTACCAACTGGGCCGAAGCTGCAGAGCGGCAAAACTGAAGAAAGCCCCAAGCAACTGCAGGAACAAGCTTTTACAATGCGAGCAGCCATTTTCAGTTGAGTTATTAACCCACCCTGAAACTCTTCTAAGCTATGCCTTTTTTAAAGAACAAATGTGCTGAATCAAACATGAATGA"
+conda_env="/software/hgi/envs/conda/team227/pm23/crispresso2"
+source /software/hgi/installs/conda-audited/miniconda/bin/activate $conda_env
+CRISPResso \
+--fastq_r1 /lustre/scratch126/gengen/projects/escramble/Notebook/006_OTX2_TFBS_deletion_analysis/FASTQ/OTX2_12TFBS_round0_repA.amplicon.fastq \
+--quantification_window_coordinates 35-48_58-65_152-159_201-206_219-226_249-256_270-277_278-283_325-330_355-365_366-371_374-381 \
+--amplicon_seq $AMPLICON_seq --name R0_repA'
+
+# Round 0 replicate B
+
+bsub -q normal -n 12 -R'select[mem>32000] rusage[mem=32000] span[hosts=1]' -M32000 -o CRISPResso.log -J CRISPResso \
+'cd /lustre/scratch126/gengen/projects/escramble/Notebook/006_OTX2_TFBS_deletion_analysis/CRISPRessoQWC
+AMPLICON_seq="AGTCCCACCCTTAATCTCTTTGAGGCCTCTATGAGTTTCCATAGCACTTTACAAAAGATCTTTATTGAGGAAAGGATTGGACAAACTTTCCTTATATGTGTGGCCCACACCATTAATTGCCCCATCTCCTTTAGTAAGGCCTTATTCCTATGTAAATACCCTTGCATAATGTTACAGGCTATTGTTAGGCCAGCGCCAGTCAGTCGCCACTTATATGCATTTTTACTTCAATCCGCTGCTCAGAGAATGAAAAGATGTCTGGACTTAAGCTGTTTACCAACTGGGCCGAAGCTGCAGAGCGGCAAAACTGAAGAAAGCCCCAAGCAACTGCAGGAACAAGCTTTTACAATGCGAGCAGCCATTTTCAGTTGAGTTATTAACCCACCCTGAAACTCTTCTAAGCTATGCCTTTTTTAAAGAACAAATGTGCTGAATCAAACATGAATGA"
+conda_env="/software/hgi/envs/conda/team227/pm23/crispresso2"
+source /software/hgi/installs/conda-audited/miniconda/bin/activate $conda_env
+CRISPResso \
+--fastq_r1 /lustre/scratch126/gengen/projects/escramble/Notebook/006_OTX2_TFBS_deletion_analysis/FASTQ/OTX2_12TFBS_round0_repB.amplicon.fastq \
+--quantification_window_coordinates 35-48_58-65_152-159_201-206_219-226_249-256_270-277_278-283_325-330_355-365_366-371_374-381 \
+--amplicon_seq $AMPLICON_seq --name R0_repB'
+
+# Round 0 replicate C
+
+bsub -q normal -n 12 -R'select[mem>32000] rusage[mem=32000] span[hosts=1]' -M32000 -o CRISPResso.log -J CRISPResso \
+'cd /lustre/scratch126/gengen/projects/escramble/Notebook/006_OTX2_TFBS_deletion_analysis/CRISPRessoQWC
+AMPLICON_seq="AGTCCCACCCTTAATCTCTTTGAGGCCTCTATGAGTTTCCATAGCACTTTACAAAAGATCTTTATTGAGGAAAGGATTGGACAAACTTTCCTTATATGTGTGGCCCACACCATTAATTGCCCCATCTCCTTTAGTAAGGCCTTATTCCTATGTAAATACCCTTGCATAATGTTACAGGCTATTGTTAGGCCAGCGCCAGTCAGTCGCCACTTATATGCATTTTTACTTCAATCCGCTGCTCAGAGAATGAAAAGATGTCTGGACTTAAGCTGTTTACCAACTGGGCCGAAGCTGCAGAGCGGCAAAACTGAAGAAAGCCCCAAGCAACTGCAGGAACAAGCTTTTACAATGCGAGCAGCCATTTTCAGTTGAGTTATTAACCCACCCTGAAACTCTTCTAAGCTATGCCTTTTTTAAAGAACAAATGTGCTGAATCAAACATGAATGA"
+conda_env="/software/hgi/envs/conda/team227/pm23/crispresso2"
+source /software/hgi/installs/conda-audited/miniconda/bin/activate $conda_env
+CRISPResso \
+--fastq_r1 /lustre/scratch126/gengen/projects/escramble/Notebook/006_OTX2_TFBS_deletion_analysis/FASTQ/OTX2_12TFBS_round0_repC.amplicon.fastq \
+--quantification_window_coordinates 35-48_58-65_152-159_201-206_219-226_249-256_270-277_278-283_325-330_355-365_366-371_374-381 \
+--amplicon_seq $AMPLICON_seq --name R0_repC'
+
+# Round 1 replicate A
+
+bsub -q normal -n 12 -R'select[mem>32000] rusage[mem=32000] span[hosts=1]' -M32000 -o CRISPResso.log -J CRISPResso \
+'cd /lustre/scratch126/gengen/projects/escramble/Notebook/006_OTX2_TFBS_deletion_analysis/CRISPRessoQWC
+AMPLICON_seq="AGTCCCACCCTTAATCTCTTTGAGGCCTCTATGAGTTTCCATAGCACTTTACAAAAGATCTTTATTGAGGAAAGGATTGGACAAACTTTCCTTATATGTGTGGCCCACACCATTAATTGCCCCATCTCCTTTAGTAAGGCCTTATTCCTATGTAAATACCCTTGCATAATGTTACAGGCTATTGTTAGGCCAGCGCCAGTCAGTCGCCACTTATATGCATTTTTACTTCAATCCGCTGCTCAGAGAATGAAAAGATGTCTGGACTTAAGCTGTTTACCAACTGGGCCGAAGCTGCAGAGCGGCAAAACTGAAGAAAGCCCCAAGCAACTGCAGGAACAAGCTTTTACAATGCGAGCAGCCATTTTCAGTTGAGTTATTAACCCACCCTGAAACTCTTCTAAGCTATGCCTTTTTTAAAGAACAAATGTGCTGAATCAAACATGAATGA"
+conda_env="/software/hgi/envs/conda/team227/pm23/crispresso2"
+source /software/hgi/installs/conda-audited/miniconda/bin/activate $conda_env
+CRISPResso \
+--fastq_r1 /lustre/scratch126/gengen/projects/escramble/Notebook/006_OTX2_TFBS_deletion_analysis/FASTQ/OTX2_12TFBS_round1_repA.amplicon.fastq \
+--quantification_window_coordinates 35-48_58-65_152-159_201-206_219-226_249-256_270-277_278-283_325-330_355-365_366-371_374-381 \
+--amplicon_seq $AMPLICON_seq --name R1_repA'
+
+# Round 1 replicate B
+
+bsub -q normal -n 12 -R'select[mem>32000] rusage[mem=32000] span[hosts=1]' -M32000 -o CRISPResso.log -J CRISPResso \
+'cd /lustre/scratch126/gengen/projects/escramble/Notebook/006_OTX2_TFBS_deletion_analysis/CRISPRessoQWC
+AMPLICON_seq="AGTCCCACCCTTAATCTCTTTGAGGCCTCTATGAGTTTCCATAGCACTTTACAAAAGATCTTTATTGAGGAAAGGATTGGACAAACTTTCCTTATATGTGTGGCCCACACCATTAATTGCCCCATCTCCTTTAGTAAGGCCTTATTCCTATGTAAATACCCTTGCATAATGTTACAGGCTATTGTTAGGCCAGCGCCAGTCAGTCGCCACTTATATGCATTTTTACTTCAATCCGCTGCTCAGAGAATGAAAAGATGTCTGGACTTAAGCTGTTTACCAACTGGGCCGAAGCTGCAGAGCGGCAAAACTGAAGAAAGCCCCAAGCAACTGCAGGAACAAGCTTTTACAATGCGAGCAGCCATTTTCAGTTGAGTTATTAACCCACCCTGAAACTCTTCTAAGCTATGCCTTTTTTAAAGAACAAATGTGCTGAATCAAACATGAATGA"
+conda_env="/software/hgi/envs/conda/team227/pm23/crispresso2"
+source /software/hgi/installs/conda-audited/miniconda/bin/activate $conda_env
+CRISPResso \
+--fastq_r1 /lustre/scratch126/gengen/projects/escramble/Notebook/006_OTX2_TFBS_deletion_analysis/FASTQ/OTX2_12TFBS_round1_repB.amplicon.fastq \
+--quantification_window_coordinates 35-48_58-65_152-159_201-206_219-226_249-256_270-277_278-283_325-330_355-365_366-371_374-381 \
+--amplicon_seq $AMPLICON_seq --name R1_repB'
+
+# Round 1 replicate C
+
+bsub -q normal -n 12 -R'select[mem>32000] rusage[mem=32000] span[hosts=1]' -M32000 -o CRISPResso.log -J CRISPResso \
+'cd /lustre/scratch126/gengen/projects/escramble/Notebook/006_OTX2_TFBS_deletion_analysis/CRISPRessoQWC
+AMPLICON_seq="AGTCCCACCCTTAATCTCTTTGAGGCCTCTATGAGTTTCCATAGCACTTTACAAAAGATCTTTATTGAGGAAAGGATTGGACAAACTTTCCTTATATGTGTGGCCCACACCATTAATTGCCCCATCTCCTTTAGTAAGGCCTTATTCCTATGTAAATACCCTTGCATAATGTTACAGGCTATTGTTAGGCCAGCGCCAGTCAGTCGCCACTTATATGCATTTTTACTTCAATCCGCTGCTCAGAGAATGAAAAGATGTCTGGACTTAAGCTGTTTACCAACTGGGCCGAAGCTGCAGAGCGGCAAAACTGAAGAAAGCCCCAAGCAACTGCAGGAACAAGCTTTTACAATGCGAGCAGCCATTTTCAGTTGAGTTATTAACCCACCCTGAAACTCTTCTAAGCTATGCCTTTTTTAAAGAACAAATGTGCTGAATCAAACATGAATGA"
+conda_env="/software/hgi/envs/conda/team227/pm23/crispresso2"
+source /software/hgi/installs/conda-audited/miniconda/bin/activate $conda_env
+CRISPResso \
+--fastq_r1 /lustre/scratch126/gengen/projects/escramble/Notebook/006_OTX2_TFBS_deletion_analysis/FASTQ/OTX2_12TFBS_round1_repC.amplicon.fastq \
+--quantification_window_coordinates 35-48_58-65_152-159_201-206_219-226_249-256_270-277_278-283_325-330_355-365_366-371_374-381 \
+--amplicon_seq $AMPLICON_seq --name R1_repC'
+
+# Round 2 replicate A
+
+bsub -q normal -n 12 -R'select[mem>32000] rusage[mem=32000] span[hosts=1]' -M32000 -o CRISPResso.log -J CRISPResso \
+'cd /lustre/scratch126/gengen/projects/escramble/Notebook/006_OTX2_TFBS_deletion_analysis/CRISPRessoQWC
+AMPLICON_seq="AGTCCCACCCTTAATCTCTTTGAGGCCTCTATGAGTTTCCATAGCACTTTACAAAAGATCTTTATTGAGGAAAGGATTGGACAAACTTTCCTTATATGTGTGGCCCACACCATTAATTGCCCCATCTCCTTTAGTAAGGCCTTATTCCTATGTAAATACCCTTGCATAATGTTACAGGCTATTGTTAGGCCAGCGCCAGTCAGTCGCCACTTATATGCATTTTTACTTCAATCCGCTGCTCAGAGAATGAAAAGATGTCTGGACTTAAGCTGTTTACCAACTGGGCCGAAGCTGCAGAGCGGCAAAACTGAAGAAAGCCCCAAGCAACTGCAGGAACAAGCTTTTACAATGCGAGCAGCCATTTTCAGTTGAGTTATTAACCCACCCTGAAACTCTTCTAAGCTATGCCTTTTTTAAAGAACAAATGTGCTGAATCAAACATGAATGA"
+conda_env="/software/hgi/envs/conda/team227/pm23/crispresso2"
+source /software/hgi/installs/conda-audited/miniconda/bin/activate $conda_env
+CRISPResso \
+--fastq_r1 /lustre/scratch126/gengen/projects/escramble/Notebook/006_OTX2_TFBS_deletion_analysis/FASTQ/OTX2_12TFBS_round2_repA.amplicon.fastq \
+--quantification_window_coordinates 35-48_58-65_152-159_201-206_219-226_249-256_270-277_278-283_325-330_355-365_366-371_374-381 \
+--amplicon_seq $AMPLICON_seq --name R2_repA'
+
+# Round 2 replicate B
+
+bsub -q normal -n 12 -R'select[mem>32000] rusage[mem=32000] span[hosts=1]' -M32000 -o CRISPResso.log -J CRISPResso \
+'cd /lustre/scratch126/gengen/projects/escramble/Notebook/006_OTX2_TFBS_deletion_analysis/CRISPRessoQWC
+AMPLICON_seq="AGTCCCACCCTTAATCTCTTTGAGGCCTCTATGAGTTTCCATAGCACTTTACAAAAGATCTTTATTGAGGAAAGGATTGGACAAACTTTCCTTATATGTGTGGCCCACACCATTAATTGCCCCATCTCCTTTAGTAAGGCCTTATTCCTATGTAAATACCCTTGCATAATGTTACAGGCTATTGTTAGGCCAGCGCCAGTCAGTCGCCACTTATATGCATTTTTACTTCAATCCGCTGCTCAGAGAATGAAAAGATGTCTGGACTTAAGCTGTTTACCAACTGGGCCGAAGCTGCAGAGCGGCAAAACTGAAGAAAGCCCCAAGCAACTGCAGGAACAAGCTTTTACAATGCGAGCAGCCATTTTCAGTTGAGTTATTAACCCACCCTGAAACTCTTCTAAGCTATGCCTTTTTTAAAGAACAAATGTGCTGAATCAAACATGAATGA"
+conda_env="/software/hgi/envs/conda/team227/pm23/crispresso2"
+source /software/hgi/installs/conda-audited/miniconda/bin/activate $conda_env
+CRISPResso \
+--fastq_r1 /lustre/scratch126/gengen/projects/escramble/Notebook/006_OTX2_TFBS_deletion_analysis/FASTQ/OTX2_12TFBS_round2_repB.amplicon.fastq \
+--quantification_window_coordinates 35-48_58-65_152-159_201-206_219-226_249-256_270-277_278-283_325-330_355-365_366-371_374-381 \
+--amplicon_seq $AMPLICON_seq --name R2_repB'
+
+# Round 2 replicate C
+
+bsub -q normal -n 12 -R'select[mem>32000] rusage[mem=32000] span[hosts=1]' -M32000 -o CRISPResso.log -J CRISPResso \
+'cd /lustre/scratch126/gengen/projects/escramble/Notebook/006_OTX2_TFBS_deletion_analysis/CRISPRessoQWC
+AMPLICON_seq="AGTCCCACCCTTAATCTCTTTGAGGCCTCTATGAGTTTCCATAGCACTTTACAAAAGATCTTTATTGAGGAAAGGATTGGACAAACTTTCCTTATATGTGTGGCCCACACCATTAATTGCCCCATCTCCTTTAGTAAGGCCTTATTCCTATGTAAATACCCTTGCATAATGTTACAGGCTATTGTTAGGCCAGCGCCAGTCAGTCGCCACTTATATGCATTTTTACTTCAATCCGCTGCTCAGAGAATGAAAAGATGTCTGGACTTAAGCTGTTTACCAACTGGGCCGAAGCTGCAGAGCGGCAAAACTGAAGAAAGCCCCAAGCAACTGCAGGAACAAGCTTTTACAATGCGAGCAGCCATTTTCAGTTGAGTTATTAACCCACCCTGAAACTCTTCTAAGCTATGCCTTTTTTAAAGAACAAATGTGCTGAATCAAACATGAATGA"
+conda_env="/software/hgi/envs/conda/team227/pm23/crispresso2"
+source /software/hgi/installs/conda-audited/miniconda/bin/activate $conda_env
+CRISPResso \
+--fastq_r1 /lustre/scratch126/gengen/projects/escramble/Notebook/006_OTX2_TFBS_deletion_analysis/FASTQ/OTX2_12TFBS_round2_repC.amplicon.fastq \
+--quantification_window_coordinates 35-48_58-65_152-159_201-206_219-226_249-256_270-277_278-283_325-330_355-365_366-371_374-381 \
+--amplicon_seq $AMPLICON_seq --name R2_repC'
+```
+
+Analyse results
+
+```{r, eval = F}
+# R
+
+#######################
+# Load CRISPResso results
+
+R0.repA.mod.count.df <- read.table("/lustre/scratch126/gengen/projects/escramble/Notebook/006_OTX2_TFBS_deletion_analysis/CRISPRessoQWC/CRISPResso_on_R0_repA/Quantification_window_modification_count_vectors.txt", row.names = 1)
+
+R0.repB.mod.count.df <- read.table("/lustre/scratch126/gengen/projects/escramble/Notebook/006_OTX2_TFBS_deletion_analysis/CRISPRessoQWC/CRISPResso_on_R0_repB/Quantification_window_modification_count_vectors.txt", row.names = 1)
+
+R0.repC.mod.count.df <- read.table("/lustre/scratch126/gengen/projects/escramble/Notebook/006_OTX2_TFBS_deletion_analysis/CRISPRessoQWC/CRISPResso_on_R0_repC/Quantification_window_modification_count_vectors.txt", row.names = 1)
+
+R1.repA.mod.count.df <- read.table("/lustre/scratch126/gengen/projects/escramble/Notebook/006_OTX2_TFBS_deletion_analysis/CRISPRessoQWC/CRISPResso_on_R1_repA/Quantification_window_modification_count_vectors.txt", row.names = 1)
+
+R1.repB.mod.count.df <- read.table("/lustre/scratch126/gengen/projects/escramble/Notebook/006_OTX2_TFBS_deletion_analysis/CRISPRessoQWC/CRISPResso_on_R1_repB/Quantification_window_modification_count_vectors.txt", row.names = 1)
+
+R1.repC.mod.count.df <- read.table("/lustre/scratch126/gengen/projects/escramble/Notebook/006_OTX2_TFBS_deletion_analysis/CRISPRessoQWC/CRISPResso_on_R1_repC/Quantification_window_modification_count_vectors.txt", row.names = 1)
+
+R2.repA.mod.count.df <- read.table("/lustre/scratch126/gengen/projects/escramble/Notebook/006_OTX2_TFBS_deletion_analysis/CRISPRessoQWC/CRISPResso_on_R2_repA/Quantification_window_modification_count_vectors.txt", row.names = 1)
+
+R2.repB.mod.count.df <- read.table("/lustre/scratch126/gengen/projects/escramble/Notebook/006_OTX2_TFBS_deletion_analysis/CRISPRessoQWC/CRISPResso_on_R2_repB/Quantification_window_modification_count_vectors.txt", row.names = 1)
+
+R2.repC.mod.count.df <- read.table("/lustre/scratch126/gengen/projects/escramble/Notebook/006_OTX2_TFBS_deletion_analysis/CRISPRessoQWC/CRISPResso_on_R2_repC/Quantification_window_modification_count_vectors.txt", row.names = 1)
+
+#####################
+# Define functions
+
+# Function to extract deletion frequency over the amplicons
+
+DEL.freq.amplicon.fun <- function(deletion.coverage) { # Result from CRISPResso analysis Quantification_window_modification_count_vectors.txt
+  # add position information
+  position <- seq_along(deletion.coverage)
+  deletion.coverage <- rbind(position, deletion.coverage)
+  rownames(deletion.coverage) <- c("pos", "sequence", "insertions", "deletions", "substitutions", "all_modifications", "read.count")
+  # reformat
+  deletion.coverage <- t(deletion.coverage) %>% as.data.frame() %>% mutate(across(-sequence, as.numeric))
+  # compute insertion frequencies in percentage
+  deletion.coverage <- deletion.coverage %>% mutate(del.freq = (deletions/read.count)*100)
+  return(deletion.coverage)
+}
+
+# Function to extract deletion frequency at TFBS
+
+DEL.freq.TFBS.fun <- function(deletion.coverage, sample) { # deletion.coverages the ouput of DEL.freq.amplicon.fun, sample the sample name
+  # Pull individual values at TFBS
+  FOXA1_1.val <- deletion.coverage %>% filter(pos >= 58 & pos <= 65) %>% pull(del.freq) %>% mean()
+  FOXA1_2.val <- deletion.coverage %>% filter(pos >= 152 & pos <= 159) %>% pull(del.freq) %>% mean()
+  FOXA1_3.val <- deletion.coverage %>% filter(pos >= 219 & pos <= 226) %>% pull(del.freq) %>% mean()
+  FOXA1_4.val <- deletion.coverage %>% filter(pos >= 249 & pos <= 256) %>% pull(del.freq) %>% mean()
+  FOXA1_5.val <- deletion.coverage %>% filter(pos >= 270 & pos <= 277) %>% pull(del.freq) %>% mean()
+  FOXA1_6.val <- deletion.coverage %>% filter(pos >= 374 & pos <= 381) %>% pull(del.freq) %>% mean()
+  RFX5.val <- deletion.coverage %>% filter(pos >= 35 & pos <= 48) %>% pull(del.freq) %>% mean()
+  YY1.val <- deletion.coverage %>% filter(pos >= 355 & pos <= 365) %>% pull(del.freq) %>% mean()
+  MYB_1.val <- deletion.coverage %>% filter(pos >= 201 & pos <= 206) %>% pull(del.freq) %>% mean()
+  MYB_2.val <- deletion.coverage %>% filter(pos >= 278 & pos <= 283) %>% pull(del.freq) %>% mean()
+  MYB_3.val <- deletion.coverage %>% filter(pos >= 325 & pos <= 330) %>% pull(del.freq) %>% mean()
+  MYB_4.val <- deletion.coverage %>% filter(pos >= 366 & pos <= 371) %>% pull(del.freq) %>% mean()
+  # Prepare summaru table
+  del.TFBS.freq.df <- tibble(sample = rep(sample, 12),
+                             TFBS = c("FOXA1_1", "FOXA1_2", "FOXA1_3", "FOXA1_4", "FOXA1_5", "FOXA1_6", "RFX5", "YY1", "MYB_1", "MYB_2", "MYB_3", "MYB_4"),
+                             del.freq = c(FOXA1_1.val, FOXA1_2.val, FOXA1_3.val, FOXA1_4.val, FOXA1_5.val, FOXA1_6.val, RFX5.val, YY1.val, MYB_1.val, MYB_2.val, MYB_3.val, MYB_4.val))
+}
+
+#####################
+# Compute frequencies
+
+R0.repA.del.count.df <- DEL.freq.amplicon.fun(R0.repA.mod.count.df)
+R0.repA.TFBS.del.freq.df <- DEL.freq.TFBS.fun(R0.repA.del.count.df, "R0.repA")
+
+R0.repB.del.count.df <- DEL.freq.amplicon.fun(R0.repB.mod.count.df)
+R0.repB.TFBS.del.freq.df <- DEL.freq.TFBS.fun(R0.repB.del.count.df, "R0.repB")
+
+R0.repC.del.count.df <- DEL.freq.amplicon.fun(R0.repC.mod.count.df)
+R0.repC.TFBS.del.freq.df <- DEL.freq.TFBS.fun(R0.repC.del.count.df, "R0.repC")
+
+R1.repA.del.count.df <- DEL.freq.amplicon.fun(R1.repA.mod.count.df)
+R1.repA.TFBS.del.freq.df <- DEL.freq.TFBS.fun(R1.repA.del.count.df, "R1.repA")
+
+R1.repB.del.count.df <- DEL.freq.amplicon.fun(R1.repB.mod.count.df)
+R1.repB.TFBS.del.freq.df <- DEL.freq.TFBS.fun(R1.repB.del.count.df, "R1.repB")
+
+R1.repC.del.count.df <- DEL.freq.amplicon.fun(R1.repC.mod.count.df)
+R1.repC.TFBS.del.freq.df <- DEL.freq.TFBS.fun(R1.repC.del.count.df, "R1.repC")
+
+R2.repA.del.count.df <- DEL.freq.amplicon.fun(R2.repA.mod.count.df)
+R2.repA.TFBS.del.freq.df <- DEL.freq.TFBS.fun(R2.repA.del.count.df, "R2.repA")
+
+R2.repB.del.count.df <- DEL.freq.amplicon.fun(R2.repB.mod.count.df)
+R2.repB.TFBS.del.freq.df <- DEL.freq.TFBS.fun(R2.repB.del.count.df, "R2.repB")
+
+R2.repC.del.count.df <- DEL.freq.amplicon.fun(R2.repC.mod.count.df)
+R2.repC.TFBS.del.freq.df <- DEL.freq.TFBS.fun(R2.repC.del.count.df, "R2.repC")
+
+#####################
+# Combine information
+
+# Deletion coverage
+
+R0.repA.del.count.reform.df <- R0.repA.del.count.df %>% dplyr::select(pos, R0.repA.del.freq = del.freq)
+R0.repB.del.count.reform.df <- R0.repB.del.count.df %>% dplyr::select(pos, R0.repB.del.freq = del.freq)
+R0.repC.del.count.reform.df <- R0.repC.del.count.df %>% dplyr::select(pos, R0.repC.del.freq = del.freq)
+R0.del.count.reform.df <- R0.repA.del.count.reform.df %>% left_join(R0.repB.del.count.reform.df) %>% left_join(R0.repC.del.count.reform.df) %>% 
+  mutate(del.freq = (R0.repA.del.freq+R0.repB.del.freq+R0.repC.del.freq)/3) %>% dplyr::select(pos, del.freq) %>% mutate(round = 0)
+R1.repA.del.count.reform.df <- R1.repA.del.count.df %>% dplyr::select(pos, R1.repA.del.freq = del.freq)
+R1.repB.del.count.reform.df <- R1.repB.del.count.df %>% dplyr::select(pos, R1.repB.del.freq = del.freq)
+R1.repC.del.count.reform.df <- R1.repC.del.count.df %>% dplyr::select(pos, R1.repC.del.freq = del.freq)
+R1.del.count.reform.df <- R1.repA.del.count.reform.df %>% left_join(R1.repB.del.count.reform.df) %>% left_join(R1.repC.del.count.reform.df) %>% 
+  mutate(del.freq = (R1.repA.del.freq+R1.repB.del.freq+R1.repC.del.freq)/3) %>% dplyr::select(pos, del.freq) %>% mutate(round = 1)
+R2.repA.del.count.reform.df <- R2.repA.del.count.df %>% dplyr::select(pos, R2.repA.del.freq = del.freq)
+R2.repB.del.count.reform.df <- R2.repB.del.count.df %>% dplyr::select(pos, R2.repB.del.freq = del.freq)
+R2.repC.del.count.reform.df <- R2.repC.del.count.df %>% dplyr::select(pos, R2.repC.del.freq = del.freq)
+R2.del.count.reform.df <- R2.repA.del.count.reform.df %>% left_join(R2.repB.del.count.reform.df) %>% left_join(R2.repC.del.count.reform.df) %>% 
+  mutate(del.freq = (R2.repA.del.freq+R2.repB.del.freq+R2.repC.del.freq)/3) %>% dplyr::select(pos, del.freq) %>% mutate(round = 2)
+del.count.amplicon.summary.df <- rbind(R0.del.count.reform.df, R1.del.count.reform.df, R2.del.count.reform.df)
+saveRDS(del.count.amplicon.summary.df, "./006_OTX2_TFBS_deletion_analysis/rds/del.count.amplicon.summary.df.rds")
+
+# Deletion frequency at TFBS
+
+TFBS.del.freq.summary.df <- rbind(R0.repA.TFBS.del.freq.df, R0.repB.TFBS.del.freq.df, R0.repC.TFBS.del.freq.df,
+                                  R1.repA.TFBS.del.freq.df, R1.repB.TFBS.del.freq.df, R1.repC.TFBS.del.freq.df,
+                                  R2.repA.TFBS.del.freq.df, R2.repB.TFBS.del.freq.df, R2.repC.TFBS.del.freq.df) %>% 
+                            tidyr::separate(sample, c("round", "rep"), sep = "\\.") %>% 
+                            mutate(round = gsub("R", "", round)) %>%
+                            mutate(rep = gsub("rep", "", rep))
+
+# Pull values observed before sorting
+del.freq.ref.df <- TFBS.del.freq.summary.df %>% group_by(TFBS, round) %>% summarise(del.freq.ref = mean(del.freq, na.rm = T)) %>% filter(round == 0) %>% dplyr::select(-round) %>% ungroup()
+
+# Compute enrichment
+TFBS.del.freq.summary.df <- TFBS.del.freq.summary.df %>% 
+  left_join(del.freq.ref.df, by = "TFBS") %>% 
+  mutate(del.enr = del.freq/del.freq.ref)
+saveRDS(TFBS.del.freq.summary.df, "./006_OTX2_TFBS_deletion_analysis/rds/TFBS.del.freq.summary.df.rds")
+```
+
+Plot
+
+```{r message=FALSE, warning=FALSE, eval = T}
+
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(forcats)
+library(ggpubr)
+
+# Load data
+del.count.amplicon.summary.df <- readRDS("./006_OTX2_TFBS_deletion_analysis/rds/del.count.amplicon.summary.df.rds")
+TFBS.del.freq.summary.df <- readRDS("./006_OTX2_TFBS_deletion_analysis/rds/TFBS.del.freq.summary.df.rds")
+
+# Plot the frequency of deletion over the amplicon
+
+vline <- c(58, 65, 152, 159, 219, 226, 249, 256, 270, 277, 374, 381, 35, 48, 355, 365, 201, 206, 278, 283, 325, 330, 366, 371)
+del.count.amplicon.summary.plot <- del.count.amplicon.summary.df %>% ggplot(aes(x=pos, y=del.freq, colour = as.character(round))) +
+  geom_line() +
+  theme_bw() + xlab("Coordinate within amplicon [bp]") + ylab("Deletion frequency") +
+  geom_vline(xintercept=vline, linetype="dashed") +
+  scale_color_manual("Sorting\nround", values = c("#3E54A4", "#E36826", "#EF4136")) +
+  theme(aspect.ratio = 0.5, panel.grid.minor = element_blank())
+del.count.amplicon.summary.plot
+
+pdf("./Rplots/OTX2/TFBS.deletion.freq.pdf", width=7, height=3, useDingbats=FALSE)
+del.count.amplicon.summary.plot
+dev.off()
+
+# Plot the frequency of deletion over TFBSs
+
+del.freq.TFBS.plot <- TFBS.del.freq.summary.df %>%  
+  ggplot(aes(x = round, y = del.freq, fill = round)) +
+  geom_boxplot() +
+  geom_jitter(width = 0.25, size = 2, shape = 21, fill = "white") +
+  xlab("Sorting round") + ylab("Deletion frequency") +
+  scale_fill_manual("Sorting\nround", values = c("#3E54A4", "#E36826", "#EF4136")) +
+  facet_wrap(~ TFBS, scales = "free", ncol = 6) +
+  theme_bw() + theme(aspect.ratio=1, panel.grid.minor = element_blank(), legend.position="none")
+del.freq.TFBS.plot
+
+pdf("./Rplots/OTX2/TFBS.deletion.at.TFBS.freq.pdf", width=10, height=4, useDingbats=FALSE)
+del.freq.TFBS.plot
+dev.off()
+
+# Plot deletion enrichment over TFBSs
+
+TFBS.del.freq.summary.plot <- TFBS.del.freq.summary.df %>%
+  mutate(tfbs = fct_relevel(TFBS, "RFX5", "FOXA1_1", "FOXA1_2", "MYB_1", "FOXA1_3", "FOXA1_4", "FOXA1_5", "MYB_2", "MYB_3", "YY1", "MYB_4", "FOXA1_6")) %>% 
+  ggplot(aes(x = tfbs, y = del.enr, fill = round)) +
+  geom_hline(yintercept=1, linetype="dashed", linewidth = 0.25) +
+  geom_boxplot() +
+  geom_jitter(position = position_jitterdodge(dodge.width = 0.75, jitter.width = 0.1), aes(color = round), shape = 21, fill = "white") + ylim(0,3.1) +
+  scale_color_manual("Sorting\nround", values = c("#3E54A4", "#E36826", "#EF4136")) +
+  scale_fill_manual("Sorting\nround", values = c("#3E54A4", "#E36826", "#EF4136")) +
+  ylab("Deletion enrichment\n[over round 0]") +
+  theme_bw() +
+  theme(aspect.ratio = 0.5, panel.grid.minor = element_blank(), axis.title.x = element_blank(),, axis.text.x = element_text(angle = 45, hjust = 1))
+TFBS.del.freq.summary.plot
+
+pdf("./Rplots/OTX2/TFBS.deletion.at.TFBS.enrichment.pdf", width=7, height=4, useDingbats=FALSE)
+TFBS.del.freq.summary.plot
+dev.off()
+
+# Compute p-values (t-test)
+
+# RFX5,  p-value = 0.1977
+# FOXA1_1, p-value = 0.797
+# FOXA1_2, p-value = 0.03924 (*)
+# MYB_1,  p-value = 0.04462 (*)
+# FOXA1_3, p-value = 0.03396 (*)
+# FOXA1_4, p-value = 0.04943 (*)
+# FOXA1_5, p-value = 0.09864
+# MYB_2, p-value = 0.04731 (*)
+# MYB_3, p-value = 0.2549
+# YY1, p-value = 0.3124
+# MYB_4, p-value = 0.3042
+# FOXA1_6, p-value = 0.3285
+```
+
+# Crispresso2 (PE mode)
+
+Use Crispresso2 in Prime Editing mode to characterise the deletions at targeted TFBSs
+
+Generate a lookup table reporting TFBS, sample name, FASTQ path, spacer and pegRNA extension sequences.
+
+Spacer and pegRNA extension sequences need to be reported at the RNA level in the 5'->3' order.
+In practice, for spacer on the - strand, we use the reverse complement of the RNA sequence.
+
+For example,
+
+for FOXA1_3
+spacer (-) TCTTTTCATTCTCTGAGCAG -> revcomp CTGCTCAGAGAATGAAAAGA
+pegRNA extension: AGTCGCCACTTATATGCACTTCAATCCGCTGCTCAGAGAATGAAAA -> revcomp TTTTCATTCTCTGAGCAGCGGATTGAAGTGCATATAAGTGGCGACT
+
+for MYB_1
+spacer (+): TAATGTTACAGGCTATTGTT
+pegRNA extension: ATATAAGTGGACTGGCGCTGGCCTAACAATAGCCTGTAA
+
+```{r, eval = F}
+# R
+
+# Create lookup table
+
+# Define analysis path
+PATH <- "/lustre/scratch126/gengen/projects/escramble/Notebook/006_OTX2_TFBS_deletion_analysis/FASTQ/"
+
+# Define sample names
+SAMPLE_NAME <- c("OTX2_12TFBS_round0_repA", "OTX2_12TFBS_round0_repB", "OTX2_12TFBS_round0_repC",
+"OTX2_12TFBS_round1_repA", "OTX2_12TFBS_round1_repB", "OTX2_12TFBS_round1_repC",
+"OTX2_12TFBS_round2_repA", "OTX2_12TFBS_round2_repB", "OTX2_12TFBS_round2_repC")
+
+# Create a vector for the targeted TFs
+targeted_TF <- c("FOXA1_1", "FOXA1_2", "FOXA1_3", "FOXA1_4", "FOXA1_5", "FOXA1_6", "YY1", "RFX5", "MYB_1", "MYB_2", "MYB_3", "MYB_4")
+
+# Define plan of experiment
+POE.df <- expand.grid(SAMPLE_NAME, targeted_TF)
+colnames(POE.df) <- c("sample", "TFBS")
+POE.df <- POE.df %>% mutate(experiment = paste0(sample, "_", TFBS))
+
+# Add path to FASTQ file and amplicon sequence
+POE.df <- POE.df %>% mutate(path = paste0(PATH, sample, ".amplicon.fastq")) %>% 
+  mutate(amplicon.seq = "AGTCCCACCCTTAATCTCTTTGAGGCCTCTATGAGTTTCCATAGCACTTTACAAAAGATCTTTATTGAGGAAAGGATTGGACAAACTTTCCTTATATGTGTGGCCCACACCATTAATTGCCCCATCTCCTTTAGTAAGGCCTTATTCCTATGTAAATACCCTTGCATAATGTTACAGGCTATTGTTAGGCCAGCGCCAGTCAGTCGCCACTTATATGCATTTTTACTTCAATCCGCTGCTCAGAGAATGAAAAGATGTCTGGACTTAAGCTGTTTACCAACTGGGCCGAAGCTGCAGAGCGGCAAAACTGAAGAAAGCCCCAAGCAACTGCAGGAACAAGCTTTTACAATGCGAGCAGCCATTTTCAGTTGAGTTATTAACCCACCCTGAAACTCTTCTAAGCTATGCCTTTTTTAAAGAACAAATGTGCTGAATCAAACATGAATGA")
+
+# Add spacer sequences
+POE.df <- POE.df %>% mutate(spacer.seq = case_when(
+  TFBS == "FOXA1_1" ~ "TATATGTGTGGCCCACACCA",
+  TFBS == "FOXA1_2" ~ "TTGCCCCATCTCCTTTAGTA",
+  TFBS == "FOXA1_3" ~ "CTGCTCAGAGAATGAAAAGA",
+  TFBS == "FOXA1_4" ~ "ACTGGGCCGAAGCTGCAGAG",
+  TFBS == "FOXA1_5" ~ "AAGCTGCAGAGCGGCAAAAC",
+  TFBS == "FOXA1_6" ~ "ACCCTGAAACTCTTCTAAGC",
+  TFBS == "YY1" ~ "ACCCTGAAACTCTTCTAAGC",
+  TFBS == "RFX5" ~ "TAGCACTTTACAAAAGATCT",
+  TFBS == "MYB_1" ~ "TAATGTTACAGGCTATTGTT",
+  TFBS == "MYB_2" ~ "AAGCTGCAGAGCGGCAAAAC",
+  TFBS == "MYB_3" ~ "ACTGGGCCGAAGCTGCAGAG",
+  TFBS == "MYB_4" ~ "ACCCTGAAACTCTTCTAAGC"))
+
+# Add extension sequences
+POE.df <- POE.df %>% mutate(extension.seq = case_when(
+  TFBS == "FOXA1_1" ~ "TGTGGGCCACACATATAAGGAAAGTTTGTCCAATCCTTTCCTCAATCTTTTGTAAAGT",
+  TFBS == "FOXA1_2" ~ "AACATTATGCAAGGGCATAGGAATAAGGCCTTACTAAAGGAGATGGGG",
+  TFBS == "FOXA1_3" ~ "TTTTCATTCTCTGAGCAGCGGATTGAAGTGCATATAAGTGGCGACT",
+  TFBS == "FOXA1_4" ~ "CAGCTTCGGCCCAGTTGGTAAACAGCTTAAGTCCAGATTCATTCTCTGA",
+  TFBS == "FOXA1_5" ~ "CCGCTCTGCAGCTTCGGCCCAGTTGGGCTTAAGTCCAGAC",
+  TFBS == "FOXA1_6" ~ "TAGAAGAGTTTCAGGGTGGGACTCAACT",
+  TFBS == "YY1" ~ "TAGAAGAGTTTCAGGGTGGGTTAATAACTCAACTGCTGCTCGCATTGTAAA",
+  TFBS == "RFX5" ~ "TCTTTTGTAAAGTGACTCATAGAGGCCTCA",
+  TFBS == "MYB_1" ~ "ATATAAGTGGACTGGCGCTGGCCTAACAATAGCCTGTAA",
+  TFBS == "MYB_2" ~ "CCGCTCTGCAGCTTCGGCCGTAAACAGCTTAAGTCCAG",
+  TFBS == "MYB_3" ~ "TAAAAGCTTGTTCCTGCTTGGGGCTTTCTTCAGTTTTGCCGCTCTGCAGCTTCGGCCCA",
+  TFBS == "MYB_4" ~ "TAGAAGAGTTTCAGGGTGGGTTAATAACTAAAATGGCTGCTCGCATT"))
+
+# Save
+write.csv(POE.df, "/lustre/scratch126/gengen/projects/escramble/Notebook/006_OTX2_TFBS_deletion_analysis/Crispresso2.PE.table.csv", row.names = F, quote = F)
+
+# Save the table in 9 parts
+
+write.csv(POE.df[97:108,], "/lustre/scratch126/gengen/projects/escramble/Notebook/006_OTX2_TFBS_deletion_analysis/Crispresso2.PE.table.part.9.csv", row.names = F, quote = F)
+```
+
+Run analysis
+
+```{bash, eval = F}
+
+cd /lustre/scratch126/gengen/projects/escramble/Notebook/006_OTX2_TFBS_deletion_analysis/CRISPRessoPE
+
+rm -r CRISPRessoPE
+mkdir CRISPRessoPE
+cd /lustre/scratch126/gengen/projects/escramble/Notebook/006_OTX2_TFBS_deletion_analysis/CRISPRessoPE
+
+# Run analysis for all TFBSs
+# sed function is used to recover column names and values from the csv file
+# don't use PATH as variable as it is fixed in unix
+
+bsub -q normal -n 12 -R'select[mem>32000] rusage[mem=32000] span[hosts=1]' -M32000 -o CRISPResso.log -J CRISPResso \
+'EXP_CSV="/lustre/scratch126/gengen/projects/escramble/Notebook/006_OTX2_TFBS_deletion_analysis/Crispresso2.PE.table.part.9.csv"
+sed 1d $EXP_CSV | while IFS=, read -r SAMPLE TFBS EXPERIMENT FILE AMPLICON SPACER EXTENSION
+do
+  cd /lustre/scratch126/gengen/projects/escramble/Notebook/006_OTX2_TFBS_deletion_analysis/CRISPRessoPE
+  conda_env="/software/hgi/envs/conda/team227/pm23/crispresso2"
+  source /software/hgi/installs/conda-audited/miniconda/bin/activate $conda_env
+	CRISPResso -p 12 \
+		--fastq_r1 $FILE \
+		--amplicon_seq $AMPLICON \
+		--prime_editing_pegRNA_spacer_seq $SPACER \
+		--prime_editing_pegRNA_extension_seq $EXTENSION \
+		--prime_editing_pegRNA_scaffold_seq GTTTAAGAGCTAAGCTGGAAACAGCATAGCAAGTTTAAATAAGGCTAGTCCGTTATCAACTCGAAAGAGTGGCACCGAGTCGGTGC \
+		--name $EXPERIMENT
+done'
+```
+
+Characterise the deletion events at TFBS
+
+The analysis is performed by combining data from the different sorting round and replicates to consiladate the observations
+
+```{r, eval=F}
+# R
+
+# Define function to recover and format all data
+
+del.summary.fun <- function(TFBS) {
+  PATH <- "./006_OTX2_TFBS_deletion_analysis/CRISPRessoPE/"
+  ROUND <- c(0,1,2)
+  REP <- c("A", "B", "C")
+  COND <- expand.grid(ROUND, REP)
+  colnames(COND) <- c("ROUND", "REP")
+  COND.df <- COND %>% mutate(PATH = paste0(PATH, "CRISPResso_on_OTX2_12TFBS_round", ROUND, "_rep", REP, "_", TFBS, "/Reference.Deletion_histogram.txt"))
+  # Format data
+del.summary.df <- tibble(del.size = c(0:25))
+for (i in 1:nrow(COND.df)) {
+  round.i <- COND.df$ROUND[i]
+  rep.i <- COND.df$REP[i]
+    cond.i <- paste0("round_", round.i, "_rep_", rep.i)
+  df.i <- read.csv(COND.df$PATH[i], sep = "\t") %>% mutate(del_size = -del_size) %>% filter(del_size <= 25)
+  colnames(df.i) <- c("del.size", cond.i)
+  del.summary.df <- del.summary.df %>% left_join(df.i, by = "del.size")
+}
+del.summary.df <- del.summary.df %>% mutate(count = rowSums(across(-del.size))) %>% mutate(TFBS = TFBS)
+return(del.summary.df)
+}
+
+# Compile data
+
+FOXA1_1.del.hist.df <- del.summary.fun("FOXA1_1") %>% dplyr::select(del.size, count, TFBS)
+FOXA1_2.del.hist.df <- del.summary.fun("FOXA1_2") %>% dplyr::select(del.size, count, TFBS)
+FOXA1_3.del.hist.df <- del.summary.fun("FOXA1_3") %>% dplyr::select(del.size, count, TFBS)
+FOXA1_4.del.hist.df <- del.summary.fun("FOXA1_4") %>% dplyr::select(del.size, count, TFBS)
+FOXA1_5.del.hist.df <- del.summary.fun("FOXA1_5") %>% dplyr::select(del.size, count, TFBS)
+FOXA1_6.del.hist.df <- del.summary.fun("FOXA1_6") %>% dplyr::select(del.size, count, TFBS)
+
+MYB_1.del.hist.df <- del.summary.fun("MYB_1") %>% dplyr::select(del.size, count, TFBS)
+MYB_2.del.hist.df <- del.summary.fun("MYB_2") %>% dplyr::select(del.size, count, TFBS)
+MYB_3.del.hist.df <- del.summary.fun("MYB_3") %>% dplyr::select(del.size, count, TFBS)
+MYB_4.del.hist.df <- del.summary.fun("MYB_4") %>% dplyr::select(del.size, count, TFBS)
+
+YY1.del.hist.df <- del.summary.fun("YY1") %>% dplyr::select(del.size, count, TFBS)
+RFX5.del.hist.df <- del.summary.fun("RFX5") %>% dplyr::select(del.size, count, TFBS)
+
+TFBS.del.hist.df <- rbind(FOXA1_1.del.hist.df, FOXA1_2.del.hist.df, FOXA1_3.del.hist.df, FOXA1_4.del.hist.df, FOXA1_5.del.hist.df, FOXA1_6.del.hist.df, MYB_1.del.hist.df, MYB_2.del.hist.df, MYB_3.del.hist.df, MYB_4.del.hist.df, YY1.del.hist.df, RFX5.del.hist.df)
+saveRDS(TFBS.del.hist.df, "./006_OTX2_TFBS_deletion_analysis/rds/TFBS.del.hist.df.rds")
+```
+
+Plot deletion frequency
+
+```{r message=FALSE, warning=FALSE, eval = T}
+
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(forcats)
+library(ggpubr)
+library(ggbreak)
+
+# Load data
+TFBS.del.hist.df <- readRDS("./006_OTX2_TFBS_deletion_analysis/rds/TFBS.del.hist.df.rds")
+
+# Plot histograms
+
+FOXA1_3.del.hist.plot <- TFBS.del.hist.df %>% filter(TFBS == "FOXA1_3") %>% 
+  ggplot(aes(x = del.size, y = count)) +
+  geom_col(width = 0.5, fill = "#3E54A4", alpha = 0.7) + # Bars
+  geom_point(size = 2, color = "black") +
+  ylab("Read count") + xlab("Deletion length [nt]") + 
+  scale_y_break(c(0.4e6, 6600000)) + theme_bw()
+FOXA1_3.del.hist.plot
+
+FOXA1_3.del.hist.plot.2 <- TFBS.del.hist.df %>% filter(TFBS == "FOXA1_3") %>% 
+  ggplot(aes(x = del.size, y = count)) +
+  geom_col(width = 0.5, fill = "#3E54A4", alpha = 0.7) + # Bars
+  geom_point(size = 2, color = "black") +
+  ylab("Read count") + xlab("Deletion length [nt]") + ggtitle("FOXA1-3") +
+  ylim(0,0.3e6) + theme_bw() + theme(aspect.ratio = 1, panel.grid.minor = element_blank())
+
+MYB_1.del.hist.plot <- TFBS.del.hist.df %>% filter(TFBS == "MYB_1") %>% 
+  ggplot(aes(x = del.size, y = count)) +
+  geom_col(width = 0.5, fill = "#3E54A4", alpha = 0.7) + # Bars
+  geom_point(size = 2, color = "black") +
+  ylab("Read count") + xlab("Deletion length [nt]") + 
+  scale_y_break(c(0.3e6, 6900000)) + theme_bw()
+MYB_1.del.hist.plot
+
+MYB_1.del.hist.plot.2 <- TFBS.del.hist.df %>% filter(TFBS == "MYB_1") %>% 
+  ggplot(aes(x = del.size, y = count)) +
+  geom_col(width = 0.5, fill = "#3E54A4", alpha = 0.7) + # Bars
+  geom_point(size = 2, color = "black") +
+  ylab("Read count") + xlab("Deletion length [nt]") + ggtitle("MYB-1") +
+  ylim(0,0.3e6) + theme_bw() + theme(aspect.ratio = 1, panel.grid.minor = element_blank())
+
+RFX5.del.hist.plot <- TFBS.del.hist.df %>% filter(TFBS == "RFX5") %>% 
+  ggplot(aes(x = del.size, y = count)) +
+  geom_col(width = 0.5, fill = "#3E54A4", alpha = 0.7) + # Bars
+  geom_point(size = 2, color = "black") +
+  ylab("Read count") + xlab("Deletion length [nt]") + 
+  scale_y_break(c(40000, 9450000)) + theme_bw()
+RFX5.del.hist.plot
+
+RFX5.del.hist.plot.2 <- TFBS.del.hist.df %>% filter(TFBS == "RFX5") %>% 
+  ggplot(aes(x = del.size, y = count)) +
+  geom_col(width = 0.5, fill = "#3E54A4", alpha = 0.7) + # Bars
+  geom_point(size = 2, color = "black") +
+  ylab("Read count") + xlab("Deletion length [nt]") + ggtitle("RFX5") +
+  ylim(0,40000) + theme_bw() + theme(aspect.ratio = 1, panel.grid.minor = element_blank())
+
+# Save some representative plots
+
+pdf("./Rplots/OTX2/TFBS.deletion.freq.at.TFBS.pdf", width=10, height=4, useDingbats=FALSE)
+ggarrange(RFX5.del.hist.plot.2, FOXA1_3.del.hist.plot.2, MYB_1.del.hist.plot.2, nrow = 1)
+dev.off()
+```
+
+
+
+
+
+
+
+
+
+
+
+
+      
+      
+      
+      
+      
